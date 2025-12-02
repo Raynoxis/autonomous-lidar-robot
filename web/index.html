@@ -1,726 +1,680 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>MakersPet Control - Improved</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MakersPet Loki - Control Center</title>
+
+    <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/roslib@1.3.0/build/roslib.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
+
     <style>
-        * { box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --dark-bg: #1f2937;
+            --darker-bg: #111827;
+            --card-bg: #374151;
+            --text-light: #f9fafb;
+            --text-gray: #9ca3af;
+            --border-color: #4b5563;
+        }
+
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--darker-bg);
+            color: var(--text-light);
+            overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        h1 {
-            color: white;
-            text-align: center;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            margin-bottom: 30px;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .map-section {
-            grid-column: 1 / -1;
-        }
-        .box {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-        }
-        .box h2 {
-            margin-top: 0;
-            color: #2c3e50;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
-        }
-        button {
-            padding: 12px 24px;
-            margin: 5px;
-            font-size: 15px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            background: #667eea;
-            color: white;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102,126,234,0.4);
-        }
-        button.red {
-            background: #e74c3c;
-        }
-        button.red:hover {
-            background: #c0392b;
-        }
-        button.green {
-            background: #27ae60;
-        }
-        button.green:hover {
-            background: #229954;
-        }
-        .status {
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-        .status-ok {
-            background: #d4edda;
-            color: #155724;
-            border-left: 4px solid #28a745;
-        }
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid #dc3545;
-        }
-        .status-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border-left: 4px solid #17a2b8;
-        }
-        .status-warning {
-            background: #fff3cd;
-            color: #856404;
-            border-left: 4px solid #ffc107;
-        }
-        input {
-            padding: 10px;
-            margin: 5px 0;
-            width: 100%;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            max-width: 300px;
-            margin: 20px auto;
-        }
-        .controls button {
-            padding: 25px;
-            font-size: 18px;
-        }
-        #canvas {
-            border: 3px solid #667eea;
-            border-radius: 10px;
-            cursor: crosshair;
-            background: #f0f0f0;
-            display: block;
-            margin: 10px auto;
-        }
-        .map-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin: 15px 0;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .map-info-item {
+
+        /* Header */
+        .header {
+            background: var(--dark-bg);
+            padding: 1rem 2rem;
+            border-bottom: 2px solid var(--border-color);
             display: flex;
             justify-content: space-between;
-            padding: 5px;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
-        .map-info-label {
+
+        .header-title {
+            font-size: 1.5rem;
             font-weight: bold;
-            color: #495057;
+            color: var(--text-light);
         }
-        .map-info-value {
-            color: #212529;
-        }
-        #topics {
-            max-height: 150px;
-            overflow-y: auto;
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-top: 10px;
-            font-family: 'Courier New', monospace;
-        }
-        .legend {
+
+        .status-bar {
             display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin: 10px 0;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 8px;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
-        .legend-item {
+
+        .status-indicator {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
         }
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border: 1px solid #333;
-            border-radius: 3px;
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online { background: var(--success-color); }
+        .status-dot.offline { background: var(--danger-color); animation: none; }
+        .status-dot.warning { background: var(--warning-color); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Container */
+        .main-container {
+            display: grid;
+            grid-template-columns: 350px 1fr 350px;
+            gap: 1rem;
+            padding: 1rem;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Panels */
+        .panel {
+            background: var(--dark-bg);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 1rem;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            font-size: 1.125rem;
+        }
+
+        .panel-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* Left Panel - Connection & Control */
+        .connection-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-group label {
+            font-size: 0.875rem;
+            color: var(--text-gray);
+        }
+
+        .input-group input {
+            padding: 0.75rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            color: var(--text-light);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Joystick */
+        .joystick-container {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .joystick-zone {
+            width: 200px;
+            height: 200px;
+            margin: 1rem auto;
+            background: var(--card-bg);
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            position: relative;
+        }
+
+        .joystick-info {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Center Panel - Map */
+        .map-container {
+            position: relative;
+            height: 100%;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: var(--card-bg);
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1000;
+            background: rgba(31, 41, 55, 0.95);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            max-width: 300px;
+        }
+
+        .map-overlay-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .robot-info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.875rem;
+        }
+
+        /* Right Panel - Commands */
+        .command-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .command-section-title {
+            font-weight: bold;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-gray);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+
+        .command-btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .command-btn .icon {
+            font-size: 1.25rem;
+        }
+
+        /* Service Status Grid */
+        .service-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .service-item {
+            padding: 0.75rem;
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .service-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .service-status-dot.active { background: var(--success-color); }
+        .service-status-dot.inactive { background: var(--danger-color); }
+        .service-status-dot.checking { background: var(--warning-color); animation: pulse 1s infinite; }
+
+        /* Topics List */
+        .topics-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+            font-family: 'Courier New', monospace;
+            background: var(--card-bg);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+        }
+
+        .topic-item {
+            padding: 0.25rem 0;
+            color: var(--text-gray);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .topic-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--dark-bg);
+            padding: 2rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border-color);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .modal-body {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 300px 1fr;
+            }
+
+            .right-panel {
+                grid-column: 1 / -1;
+                max-height: 400px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 0.75rem 1rem;
+            }
+
+            .header-title {
+                font-size: 1.125rem;
+            }
+
+            .main-container {
+                grid-template-columns: 1fr;
+                padding: 0.5rem;
+            }
+
+            .status-bar {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .joystick-zone {
+                width: 150px;
+                height: 150px;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--darker-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-gray);
+        }
+
+        /* Loading animation */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <h1>🤖 CONTROLE ROBOT MAKERSPET LOKI - NAVIGATION INTELLIGENTE</h1>
-    
-    <div class="grid">
-        <!-- CONNEXION -->
-        <div class="box">
-            <h2>📡 CONNEXION</h2>
-            <input type="text" id="url" value="ws://192.168.0.10:9092" />
-            <button onclick="connect()" class="green">CONNECTER</button>
-            <button onclick="disconnect()" class="red">DECONNECTER</button>
-            <div id="connStatus" class="status status-error">Non connecté</div>
-            <button onclick="listTopics()">Lister Topics</button>
-            <div id="topics"></div>
-        </div>
-        
-        <!-- CONTROLE MANUEL -->
-        <div class="box">
-            <h2>🎮 CONTROLE MANUEL</h2>
-            <div class="controls">
-                <div></div>
-                <button onclick="move(0.2,0)">⬆️</button>
-                <div></div>
-                <button onclick="move(0,0.5)">⬅️</button>
-                <button onclick="move(0,0)" class="red">STOP</button>
-                <button onclick="move(0,-0.5)">➡️</button>
-                <div></div>
-                <button onclick="move(-0.2,0)">⬇️</button>
-                <div></div>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title">MakersPet Loki - Control Center</div>
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot offline" id="statusROS"></div>
+                <span>ROS Bridge</span>
             </div>
-            <div id="moveStatus" class="status status-info">En attente</div>
-        </div>
-    </div>
-    
-    <!-- CARTE INTERACTIVE -->
-    <div class="box map-section">
-        <h2>🗺️ CARTE INTERACTIVE & NAVIGATION</h2>
-        <div id="mapStatus" class="status status-warning">En attente de la carte... Cliquez sur "Charger la carte"</div>
-        <button onclick="loadMap()" class="green">Charger la carte</button>
-        <button onclick="clearCanvas()">Effacer les marqueurs</button>
-        
-        <div class="legend">
-            <div class="legend-item">
-                <div class="legend-color" style="background: white;"></div>
-                <span>Zone libre</span>
+            <div class="status-indicator">
+                <div class="status-dot offline" id="statusNav"></div>
+                <span>Navigation</span>
             </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: black;"></div>
-                <span>Obstacle</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: gray;"></div>
-                <span>Inconnu</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: red;"></div>
-                <span>Destination</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: blue;"></div>
-                <span>Robot</span>
-            </div>
-        </div>
-        
-        <canvas id="canvas" width="800" height="800"></canvas>
-        
-        <div class="map-info" id="mapInfo">
-            <div class="map-info-item">
-                <span class="map-info-label">Largeur:</span>
-                <span class="map-info-value" id="mapWidth">-</span>
-            </div>
-            <div class="map-info-item">
-                <span class="map-info-label">Hauteur:</span>
-                <span class="map-info-value" id="mapHeight">-</span>
-            </div>
-            <div class="map-info-item">
-                <span class="map-info-label">Résolution:</span>
-                <span class="map-info-value" id="mapResolution">-</span>
-            </div>
-            <div class="map-info-item">
-                <span class="map-info-label">Origine X:</span>
-                <span class="map-info-value" id="mapOriginX">-</span>
-            </div>
-            <div class="map-info-item">
-                <span class="map-info-label">Origine Y:</span>
-                <span class="map-info-value" id="mapOriginY">-</span>
-            </div>
-            <div class="map-info-item">
-                <span class="map-info-label">X min/max:</span>
-                <span class="map-info-value" id="mapRangeX">-</span>
-            </div>
-            <div class="map-info-item">
-                <span class="map-info-label">Y min/max:</span>
-                <span class="map-info-value" id="mapRangeY">-</span>
-            </div>
-        </div>
-        
-        <div class="grid" style="margin-top: 20px;">
-            <div>
-                <h3>📍 Navigation Manuelle</h3>
-                <label>Position X (m):</label>
-                <input type="number" id="posX" value="0.0" step="0.1" />
-                <label>Position Y (m):</label>
-                <input type="number" id="posY" value="0.0" step="0.1" />
-                <button onclick="navigate()" class="green">ALLER AU POINT</button>
-                <button onclick="cancelGoal()" class="red">ANNULER</button>
-                <div id="navStatus" class="status status-info">Prêt - Cliquez sur la carte ou entrez des coordonnées</div>
-            </div>
-            
-            <div>
-                <h3>🔍 EXPLORATION AUTO</h3>
-                <p>Le node explore_lite tourne déjà sur le robot.</p>
-                <button onclick="checkExplore()" class="green">VÉRIFIER EXPLORATION</button>
-                <div id="exploreStatus" class="status status-info">Cliquez pour vérifier</div>
-                <p><strong>Conseil:</strong> Déplacez d'abord le robot manuellement pour créer une carte initiale.</p>
+            <div class="status-indicator">
+                <div class="status-dot offline" id="statusMap"></div>
+                <span>Mapping</span>
             </div>
         </div>
     </div>
-    
-    <script>
-        var ros = null;
-        var cmdVel = null;
-        var navAction = null;
-        var mapListener = null;
-        var tfListener = null;
-        var canvas = null;
-        var ctx = null;
-        
-        // Map data
-        var mapData = {
-            width: 0,
-            height: 0,
-            resolution: 0,
-            origin: {x: 0, y: 0},
-            data: null
-        };
-        
-        var robotPose = {x: 0, y: 0, theta: 0};
-        var goalPose = null;
-        
-        window.onload = function() {
-            canvas = document.getElementById('canvas');
-            ctx = canvas.getContext('2d');
-            
-            canvas.addEventListener('click', function(event) {
-                if (!mapData.data) {
-                    alert('Chargez d\'abord la carte !');
-                    return;
-                }
-                
-                var rect = canvas.getBoundingClientRect();
-                var canvasX = event.clientX - rect.left;
-                var canvasY = event.clientY - rect.top;
-                
-                // Convert canvas coordinates to world coordinates
-                var worldCoords = canvasToWorld(canvasX, canvasY);
-                
-                // Validate coordinates
-                if (!validateCoordinates(worldCoords.x, worldCoords.y)) {
-                    document.getElementById('navStatus').textContent = 
-                        '❌ ERREUR: Point hors limites ou dans un obstacle !';
-                    document.getElementById('navStatus').className = 'status status-error';
-                    return;
-                }
-                
-                // Update input fields
-                document.getElementById('posX').value = worldCoords.x.toFixed(2);
-                document.getElementById('posY').value = worldCoords.y.toFixed(2);
-                
-                // Draw goal marker
-                goalPose = worldCoords;
-                drawMap();
-                
-                // Navigate
-                navigate();
-            });
-        };
-        
-        function connect() {
-            var url = document.getElementById('url').value;
-            document.getElementById('connStatus').textContent = 'Connexion...';
-            document.getElementById('connStatus').className = 'status status-info';
-            
-            ros = new ROSLIB.Ros({ url: url });
-            
-            ros.on('connection', function() {
-                document.getElementById('connStatus').textContent = '✅ CONNECTÉ !';
-                document.getElementById('connStatus').className = 'status status-ok';
-                setupROS();
-            });
-            
-            ros.on('error', function(error) {
-                document.getElementById('connStatus').textContent = '❌ ERREUR: ' + error;
-                document.getElementById('connStatus').className = 'status status-error';
-            });
-            
-            ros.on('close', function() {
-                document.getElementById('connStatus').textContent = 'Déconnecté';
-                document.getElementById('connStatus').className = 'status status-error';
-            });
-        }
-        
-        function disconnect() {
-            if (mapListener) mapListener.unsubscribe();
-            if (tfListener) tfListener.unsubscribe();
-            if (ros) ros.close();
-        }
-        
-        function setupROS() {
-            cmdVel = new ROSLIB.Topic({
-                ros: ros,
-                name: '/cmd_vel',
-                messageType: 'geometry_msgs/Twist'
-            });
-            
-            navAction = new ROSLIB.ActionClient({
-                ros: ros,
-                serverName: '/navigate_to_pose',
-                actionName: 'nav2_msgs/action/NavigateToPose'
-            });
-            
-            // Subscribe to /tf for robot position
-            tfListener = new ROSLIB.Topic({
-                ros: ros,
-                name: '/tf',
-                messageType: 'tf2_msgs/TFMessage'
-            });
-            
-            tfListener.subscribe(function(message) {
-                for (var i = 0; i < message.transforms.length; i++) {
-                    var transform = message.transforms[i];
-                    if (transform.header.frame_id === 'map' && 
-                        transform.child_frame_id === 'base_link') {
-                        robotPose.x = transform.transform.translation.x;
-                        robotPose.y = transform.transform.translation.y;
-                        // Extract yaw from quaternion
-                        var q = transform.transform.rotation;
-                        robotPose.theta = Math.atan2(2*(q.w*q.z + q.x*q.y), 
-                                                      1 - 2*(q.y*q.y + q.z*q.z));
-                        if (mapData.data) drawMap();
-                    }
-                }
-            });
-        }
-        
-        function loadMap() {
-            if (!ros) {
-                alert('Connectez-vous d\'abord !');
-                return;
-            }
-            
-            document.getElementById('mapStatus').textContent = 'Chargement de la carte...';
-            document.getElementById('mapStatus').className = 'status status-info';
-            
-            mapListener = new ROSLIB.Topic({
-                ros: ros,
-                name: '/map',
-                messageType: 'nav_msgs/OccupancyGrid'
-            });
-            
-            mapListener.subscribe(function(message) {
-                mapData.width = message.info.width;
-                mapData.height = message.info.height;
-                mapData.resolution = message.info.resolution;
-                mapData.origin.x = message.info.origin.position.x;
-                mapData.origin.y = message.info.origin.position.y;
-                mapData.data = message.data;
-                
-                updateMapInfo();
-                drawMap();
-                
-                document.getElementById('mapStatus').textContent = '✅ Carte chargée ! Cliquez sur la carte pour naviguer.';
-                document.getElementById('mapStatus').className = 'status status-ok';
-                
-                // Unsubscribe after first message to save bandwidth
-                mapListener.unsubscribe();
-            });
-        }
-        
-        function updateMapInfo() {
-            document.getElementById('mapWidth').textContent = mapData.width + ' px';
-            document.getElementById('mapHeight').textContent = mapData.height + ' px';
-            document.getElementById('mapResolution').textContent = mapData.resolution.toFixed(3) + ' m/px';
-            document.getElementById('mapOriginX').textContent = mapData.origin.x.toFixed(2) + ' m';
-            document.getElementById('mapOriginY').textContent = mapData.origin.y.toFixed(2) + ' m';
-            
-            var xMax = mapData.origin.x + mapData.width * mapData.resolution;
-            var yMax = mapData.origin.y + mapData.height * mapData.resolution;
-            
-            document.getElementById('mapRangeX').textContent = 
-                mapData.origin.x.toFixed(2) + ' à ' + xMax.toFixed(2) + ' m';
-            document.getElementById('mapRangeY').textContent = 
-                mapData.origin.y.toFixed(2) + ' à ' + yMax.toFixed(2) + ' m';
-        }
-        
-        function drawMap() {
-            if (!mapData.data) return;
-            
-            // Scale canvas to fit map
-            var scale = Math.min(canvas.width / mapData.width, 
-                                canvas.height / mapData.height);
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw map
-            for (var y = 0; y < mapData.height; y++) {
-                for (var x = 0; x < mapData.width; x++) {
-                    var index = y * mapData.width + x;
-                    var value = mapData.data[index];
-                    
-                    // ROS OccupancyGrid: -1 = unknown, 0 = free, 100 = occupied
-                    if (value === -1) {
-                        ctx.fillStyle = '#808080'; // gray for unknown
-                    } else if (value === 0) {
-                        ctx.fillStyle = '#FFFFFF'; // white for free
-                    } else {
-                        ctx.fillStyle = '#000000'; // black for occupied
-                    }
-                    
-                    // Flip Y axis (ROS Y-up, canvas Y-down)
-                    var canvasY = mapData.height - 1 - y;
-                    ctx.fillRect(x * scale, canvasY * scale, scale, scale);
-                }
-            }
-            
-            // Draw robot position
-            if (robotPose) {
-                var robotCanvas = worldToCanvas(robotPose.x, robotPose.y);
-                ctx.fillStyle = 'blue';
-                ctx.beginPath();
-                ctx.arc(robotCanvas.x, robotCanvas.y, 8, 0, 2 * Math.PI);
-                ctx.fill();
-                
-                // Draw robot orientation
-                ctx.strokeStyle = 'blue';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(robotCanvas.x, robotCanvas.y);
-                ctx.lineTo(robotCanvas.x + Math.cos(robotPose.theta) * 20,
-                          robotCanvas.y - Math.sin(robotPose.theta) * 20);
-                ctx.stroke();
-            }
-            
-            // Draw goal position
-            if (goalPose) {
-                var goalCanvas = worldToCanvas(goalPose.x, goalPose.y);
-                ctx.fillStyle = 'red';
-                ctx.beginPath();
-                ctx.arc(goalCanvas.x, goalCanvas.y, 8, 0, 2 * Math.PI);
-                ctx.fill();
-                
-                // Draw X marker
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(goalCanvas.x - 10, goalCanvas.y - 10);
-                ctx.lineTo(goalCanvas.x + 10, goalCanvas.y + 10);
-                ctx.moveTo(goalCanvas.x + 10, goalCanvas.y - 10);
-                ctx.lineTo(goalCanvas.x - 10, goalCanvas.y + 10);
-                ctx.stroke();
-            }
-        }
-        
-        function worldToCanvas(worldX, worldY) {
-            var scale = Math.min(canvas.width / mapData.width, 
-                                canvas.height / mapData.height);
-            
-            // Convert world to map coordinates
-            var mapX = (worldX - mapData.origin.x) / mapData.resolution;
-            var mapY = (worldY - mapData.origin.y) / mapData.resolution;
-            
-            // Convert map to canvas coordinates (flip Y)
-            var canvasX = mapX * scale;
-            var canvasY = (mapData.height - mapY) * scale;
-            
-            return {x: canvasX, y: canvasY};
-        }
-        
-        function canvasToWorld(canvasX, canvasY) {
-            var scale = Math.min(canvas.width / mapData.width, 
-                                canvas.height / mapData.height);
-            
-            // Convert canvas to map coordinates
-            var mapX = canvasX / scale;
-            var mapY = mapData.height - (canvasY / scale);
-            
-            // Convert map to world coordinates
-            var worldX = mapData.origin.x + mapX * mapData.resolution;
-            var worldY = mapData.origin.y + mapY * mapData.resolution;
-            
-            return {x: worldX, y: worldY};
-        }
-        
-        function validateCoordinates(x, y) {
-            if (!mapData.data) return false;
-            
-            // Check if coordinates are within map bounds
-            var xMax = mapData.origin.x + mapData.width * mapData.resolution;
-            var yMax = mapData.origin.y + mapData.height * mapData.resolution;
-            
-            if (x < mapData.origin.x || x > xMax || 
-                y < mapData.origin.y || y > yMax) {
-                return false;
-            }
-            
-            // Convert to map coordinates
-            var mapX = Math.floor((x - mapData.origin.x) / mapData.resolution);
-            var mapY = Math.floor((y - mapData.origin.y) / mapData.resolution);
-            
-            // Check bounds
-            if (mapX < 0 || mapX >= mapData.width || 
-                mapY < 0 || mapY >= mapData.height) {
-                return false;
-            }
-            
-            // Check if cell is free (not obstacle)
-            var index = mapY * mapData.width + mapX;
-            var value = mapData.data[index];
-            
-            // Allow free space (0) and unknown (-1), but not obstacles (>50)
-            if (value > 50) {
-                return false;
-            }
-            
-            return true;
-        }
-        
-        function clearCanvas() {
-            goalPose = null;
-            if (mapData.data) drawMap();
-        }
-        
-        function listTopics() {
-            if (!ros) { alert('Pas connecté!'); return; }
-            ros.getTopics(function(result) {
-                var html = '<strong>' + result.topics.length + ' topics:</strong><br>';
-                var important = ['/cmd_vel', '/map', '/scan', '/battery', '/tf'];
-                result.topics.forEach(function(topic) {
-                    if (important.some(imp => topic.includes(imp))) {
-                        html += topic + '<br>';
-                    }
-                });
-                document.getElementById('topics').innerHTML = html;
-            });
-        }
-        
-        function move(linear, angular) {
-            if (!cmdVel) { alert('Pas connecté!'); return; }
-            
-            cmdVel.publish(new ROSLIB.Message({
-                linear: { x: linear, y: 0, z: 0 },
-                angular: { x: 0, y: 0, z: angular }
-            }));
-            
-            var txt = 'Commande: ';
-            if (linear > 0) txt += 'AVANCER';
-            else if (linear < 0) txt += 'RECULER';
-            else if (angular > 0) txt += 'GAUCHE';
-            else if (angular < 0) txt += 'DROITE';
-            else txt += 'STOP';
-            
-            document.getElementById('moveStatus').textContent = txt;
-            document.getElementById('moveStatus').className = 'status status-ok';
-        }
-        
-        function navigate() {
-            if (!navAction) { alert('Pas connecté!'); return; }
-            
-            var x = parseFloat(document.getElementById('posX').value);
-            var y = parseFloat(document.getElementById('posY').value);
-            
-            // Validate coordinates
-            if (mapData.data && !validateCoordinates(x, y)) {
-                document.getElementById('navStatus').textContent = 
-                    '❌ ERREUR: Coordonnées invalides ! Point hors limites ou dans un obstacle.';
-                document.getElementById('navStatus').className = 'status status-error';
-                return;
-            }
-            
-            var goal = new ROSLIB.Goal({
-                actionClient: navAction,
-                goalMessage: {
-                    pose: {
-                        header: { frame_id: 'map' },
-                        pose: {
-                            position: { x: x, y: y, z: 0 },
-                            orientation: { x: 0, y: 0, z: 0, w: 1 }
-                        }
-                    }
-                }
-            });
-            
-            goal.on('feedback', function() {
-                document.getElementById('navStatus').textContent = 
-                    '🚀 Navigation vers (' + x.toFixed(2) + ', ' + y.toFixed(2) + ')...';
-                document.getElementById('navStatus').className = 'status status-info';
-            });
-            
-            goal.on('result', function(result) {
-                document.getElementById('navStatus').textContent = '✅ ARRIVÉ !';
-                document.getElementById('navStatus').className = 'status status-ok';
-                goalPose = null;
-                drawMap();
-            });
-            
-            goal.on('error', function(error) {
-                document.getElementById('navStatus').textContent = '❌ ERREUR: ' + error;
-                document.getElementById('navStatus').className = 'status status-error';
-            });
-            
-            goal.send();
-            goalPose = {x: x, y: y};
-            drawMap();
-            document.getElementById('navStatus').textContent = 'Envoi du goal...';
-        }
-        
-        function cancelGoal() {
-            if (navAction) {
-                navAction.cancel();
-                document.getElementById('navStatus').textContent = 'Navigation annulée';
-                document.getElementById('navStatus').className = 'status status-error';
-                goalPose = null;
-                drawMap();
-            }
-        }
-        
-        function checkExplore() {
-            if (!ros) { alert('Pas connecté!'); return; }
-            
-            ros.getNodes(function(nodes) {
-                var found = nodes.filter(n => n.includes('explore'));
-                if (found.length > 0) {
-                    document.getElementById('exploreStatus').textContent = 
-                        '✅ EXPLORATION ACTIVE: ' + found.join(', ');
-                    document.getElementById('exploreStatus').className = 'status status-ok';
-                } else {
-                    document.getElementById('exploreStatus').textContent = 
-                        'Aucun node exploration trouvé';
-                    document.getElementById('exploreStatus').className = 'status status-error';
-                }
-            });
-        }
-    </script>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Panel - Connection & Control -->
+        <div class="panel left-panel">
+            <div class="panel-header">Connection & Control</div>
+            <div class="panel-content">
+                <!-- Connection -->
+                <div class="connection-form">
+                    <div class="input-group">
+                        <label>ROS Bridge URL</label>
+                        <input type="text" id="rosUrl" value="ws://192.168.0.10:9092">
+                    </div>
+                    <button class="btn btn-success" id="btnConnect">Connect</button>
+                    <button class="btn btn-danger" id="btnDisconnect" disabled>Disconnect</button>
+                </div>
+
+                <!-- Services Status -->
+                <h3 style="margin-bottom: 0.75rem;">Services Status</h3>
+                <div class="service-grid" id="servicesGrid">
+                    <div class="service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span>/cmd_vel</span>
+                    </div>
+                    <div class="service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span>/map</span>
+                    </div>
+                    <div class="service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span>/scan</span>
+                    </div>
+                    <div class="service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span>/tf</span>
+                    </div>
+                    <div class="service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span>/odom</span>
+                    </div>
+                    <div class="service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span>/battery</span>
+                    </div>
+                </div>
+
+                <!-- Joystick Control -->
+                <div class="joystick-container">
+                    <h3 style="margin-bottom: 0.75rem;">Manual Control</h3>
+                    <div class="joystick-zone" id="joystickZone"></div>
+                    <div class="joystick-info">
+                        <div>Linear: <span id="joystickLinear">0.00</span> m/s</div>
+                        <div>Angular: <span id="joystickAngular">0.00</span> rad/s</div>
+                    </div>
+                    <button class="btn btn-danger" id="btnStop" style="width: 100%; margin-top: 1rem;">EMERGENCY STOP</button>
+                </div>
+
+                <!-- Topics -->
+                <div style="margin-top: 1.5rem;">
+                    <h3 style="margin-bottom: 0.75rem;">Active Topics</h3>
+                    <button class="btn btn-secondary" id="btnRefreshTopics" style="width: 100%; margin-bottom: 0.5rem;">Refresh Topics</button>
+                    <div class="topics-list" id="topicsList">
+                        <div style="color: var(--text-gray); text-align: center;">Connect to view topics</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel - Map -->
+        <div class="panel">
+            <div class="panel-header">Interactive Map</div>
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-overlay">
+                    <div class="map-overlay-title">Robot Position</div>
+                    <div class="robot-info-item">
+                        <span>X:</span>
+                        <span id="robotX">0.00 m</span>
+                    </div>
+                    <div class="robot-info-item">
+                        <span>Y:</span>
+                        <span id="robotY">0.00 m</span>
+                    </div>
+                    <div class="robot-info-item">
+                        <span>Theta:</span>
+                        <span id="robotTheta">0.00 rad</span>
+                    </div>
+                    <div class="robot-info-item">
+                        <span>Battery:</span>
+                        <span id="robotBattery">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Commands -->
+        <div class="panel right-panel">
+            <div class="panel-header">Navigation Commands</div>
+            <div class="panel-content">
+                <!-- Map Commands -->
+                <div class="command-section">
+                    <div class="command-section-title">Map Control</div>
+                    <button class="btn btn-primary command-btn" id="btnLoadMap">
+                        <span>Load Map</span>
+                        <span class="icon">🗺️</span>
+                    </button>
+                    <button class="btn btn-secondary command-btn" id="btnClearMarkers">
+                        <span>Clear Markers</span>
+                        <span class="icon">🗑️</span>
+                    </button>
+                </div>
+
+                <!-- Navigation Commands -->
+                <div class="command-section">
+                    <div class="command-section-title">Navigation</div>
+                    <button class="btn btn-success command-btn" id="btnNavigateToPoint">
+                        <span>Navigate to Point</span>
+                        <span class="icon">📍</span>
+                    </button>
+                    <button class="btn btn-danger command-btn" id="btnCancelGoal">
+                        <span>Cancel Goal</span>
+                        <span class="icon">❌</span>
+                    </button>
+                    <button class="btn btn-secondary command-btn" id="btnSetInitialPose">
+                        <span>Set Initial Pose</span>
+                        <span class="icon">📌</span>
+                    </button>
+                </div>
+
+                <!-- Exploration Commands -->
+                <div class="command-section">
+                    <div class="command-section-title">Exploration</div>
+                    <button class="btn btn-primary command-btn" id="btnStartExplore">
+                        <span>Start Exploration</span>
+                        <span class="icon">🔍</span>
+                    </button>
+                    <button class="btn btn-danger command-btn" id="btnStopExplore">
+                        <span>Stop Exploration</span>
+                        <span class="icon">⏹️</span>
+                    </button>
+                    <button class="btn btn-secondary command-btn" id="btnCheckExplore">
+                        <span>Check Status</span>
+                        <span class="icon">ℹ️</span>
+                    </button>
+                </div>
+
+                <!-- Additional Commands -->
+                <div class="command-section">
+                    <div class="command-section-title">System</div>
+                    <button class="btn btn-secondary command-btn" id="btnReturnHome">
+                        <span>Return to Home</span>
+                        <span class="icon">🏠</span>
+                    </button>
+                    <button class="btn btn-secondary command-btn" id="btnSaveMap">
+                        <span>Save Map</span>
+                        <span class="icon">💾</span>
+                    </button>
+                </div>
+
+                <!-- Status Log -->
+                <div style="margin-top: 1.5rem;">
+                    <div class="command-section-title">Command Log</div>
+                    <div class="topics-list" id="commandLog" style="max-height: 150px;">
+                        <div style="color: var(--text-gray); text-align: center;">Command output will appear here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Navigation Input -->
+    <div class="modal" id="navModal">
+        <div class="modal-content">
+            <div class="modal-title">Navigate to Point</div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>X Position (meters)</label>
+                    <input type="number" id="navX" value="0.0" step="0.1">
+                </div>
+                <div class="input-group" style="margin-top: 1rem;">
+                    <label>Y Position (meters)</label>
+                    <input type="number" id="navY" value="0.0" step="0.1">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="btnCancelNav">Cancel</button>
+                <button class="btn btn-success" id="btnConfirmNav">Navigate</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>

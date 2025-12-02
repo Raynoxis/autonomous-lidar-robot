@@ -1,0 +1,46 @@
+# Logs
+logs/*.log
+*.log
+
+# Maps générées
+maps/*.yaml
+maps/*.pgm
+
+# Fichiers temporaires ROS
+*.pid
+*.swp
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environnements virtuels
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker / Podman
+.env
+
+# Secrets (ne jamais commiter)
+**/secrets/
+*.key
+*.pem
+credentials.json
+
+# Mémoires de debug (fichiers temporaires)
+MEMOIRE_*.md
+RAPPORT_*.md
+*.md.bak

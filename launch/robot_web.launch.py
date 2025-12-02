@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""
+MakersPet Loki - Web Navigation Launch File
+Démarrage complet: Physical + SLAM + Nav2 + RosBridge
+"""
+
+import os
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.launch_description_sources import FrontendLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+
+def generate_launch_description():
+    # Récupération des chemins de packages
+    nav2_bringup_dir = get_package_share_directory('nav2_bringup')
+    rosbridge_server_dir = get_package_share_directory('rosbridge_server')
+
+    # Arguments de lancement
+    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
+    slam_mode = LaunchConfiguration('slam', default='True')
+
+    # Chemin vers le fichier de paramètres navigation
+    params_file = LaunchConfiguration('params_file',
+        default='/app/config/navigation.yaml')
+
+    # Inclusion de Nav2 Bringup avec SLAM
+    nav2_bringup_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.py')
+        ),
+        launch_arguments={
+            'slam': slam_mode,
+            'use_sim_time': use_sim_time,
+            'params_file': params_file,
+        }.items()
+    )
+
+    # Inclusion de RosBridge WebSocket avec port 9092
+    rosbridge_launch = IncludeLaunchDescription(
+        FrontendLaunchDescriptionSource(
+            os.path.join(rosbridge_server_dir, 'launch', 'rosbridge_websocket_launch.xml')
+        ),
+        launch_arguments={
+            'port': '9092',
+        }.items()
+    )
+
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use simulation time'
+        ),
+        DeclareLaunchArgument(
+            'slam',
+            default_value='True',
+            description='Enable SLAM mode'
+        ),
+        DeclareLaunchArgument(
+            'params_file',
+            default_value='/app/config/navigation.yaml',
+            description='Full path to the ROS2 parameters file for Nav2'
+        ),
+        nav2_bringup_launch,
+        rosbridge_launch,
+    ])

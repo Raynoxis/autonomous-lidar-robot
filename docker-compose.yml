@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  makerspet-loki-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: makerspet-loki-web:latest
+    container_name: makerspet-loki-web
+    network_mode: host
+    privileged: true
+    
+    volumes:
+      - ./maps:/app/maps
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./web:/app/web
+    
+    environment:
+      - ROS_DOMAIN_ID=0
+      - ROS_LOCALHOST_ONLY=0
+      - RCUTILS_COLORIZED_OUTPUT=1
+    
+    restart: unless-stopped
+    
+    stdin_open: true
+    tty: true

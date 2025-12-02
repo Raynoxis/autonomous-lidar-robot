@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MakersPet Loki - Web Navigation Launch File
+MakersPet Mini - Web Navigation Launch File
 Démarrage complet: Physical + SLAM + Nav2 + RosBridge
 """
 

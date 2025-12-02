@@ -7,7 +7,7 @@ source /app/ros_ws/install/setup.bash
 source /app/uros_ws/install/setup.bash
 
 echo "==================================="
-echo "MakersPet Loki - Web Navigation"
+echo "MakersPet Mini - Web Navigation"
 echo "==================================="
 echo "ROS_DISTRO: ${ROS_DISTRO}"
 echo "Workspace: /app/ros_ws"
@@ -102,9 +102,9 @@ ros2 run kaiaai_telemetry telem \
     > /app/logs/telemetry.log 2>&1 &
 sleep 5
 
-# 3. Robot State Publisher avec fichier URDF
-echo "Starting Robot State Publisher..."
-xacro /app/ros_ws/src/makerspet_loki/urdf/robot.urdf.xacro > /tmp/robot.urdf 2>/dev/null
+# 3. Robot State Publisher avec fichier URDF Mini
+echo "Starting Robot State Publisher (Mini)..."
+xacro /app/ros_ws/src/makerspet_mini/urdf/robot.urdf.xacro > /tmp/robot.urdf 2>/dev/null
 
 cat > /tmp/robot_state_params.yaml << 'YAML_EOF'
 robot_state_publisher:

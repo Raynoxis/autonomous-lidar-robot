@@ -2,7 +2,7 @@ kaiaai_telemetry_node:
   ros__parameters:
 
     laser_scan:
-      mask_radius_meters: 0.1
+      mask_radius_meters: 0.0625
       topic_name_pub: "scan"
       frame_id: "base_scan"
       discard_broken_scans: true
@@ -43,8 +43,8 @@ kaiaai_telemetry_node:
 
     battery:
       topic_name_pub: "battery_state"
-      voltage_full: 25.2
-      voltage_empty: 22.2
+      voltage_full: 9.0
+      voltage_empty: 6.8
 
     wifi:
       topic_name_pub: "wifi_state"

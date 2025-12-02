@@ -1,10 +1,10 @@
-# MakersPet Loki - Web Navigation Container
+# MakersPet Mini - Web Navigation Container
 # Base: ROS2 Iron officielle
 FROM docker.io/osrf/ros:iron-desktop-full
 
 # Métadonnées
 LABEL maintainer="MakersPet Web Navigation"
-LABEL description="ROS2 Iron container for MakersPet Loki with web interface"
+LABEL description="ROS2 Iron container for MakersPet Mini (120mm) with web interface and autonomous exploration"
 
 # Variables d'environnement
 ENV DEBIAN_FRONTEND=noninteractive
@@ -55,6 +55,9 @@ WORKDIR ${WORKSPACE}/src
 # Explore Lite (exploration autonome) - Fork KaiAI optimisé pour MakersPet
 RUN git clone -b main https://github.com/kaiaai/m-explore-ros2.git
 
+# Auto Mapper (cartographie automatique avec exploration)
+RUN git clone https://github.com/Omar-Salem/auto_mapper.git
+
 # Packages KaiAI pour télémétrie et messages
 RUN git clone -b iron https://github.com/kaiaai/kaiaai_telemetry.git && \
     cd kaiaai_telemetry && \
@@ -62,8 +65,8 @@ RUN git clone -b iron https://github.com/kaiaai/kaiaai_telemetry.git && \
     cd .. && \
     git clone -b iron https://github.com/kaiaai/kaiaai_msgs.git
 
-# Package MakersPet Loki (robot specifique)
-RUN git clone -b iron https://github.com/makerspet/makerspet_loki.git
+# Package MakersPet Mini (robot specifique - 120mm base)
+RUN git clone -b iron https://github.com/makerspet/makerspet_mini.git
 
 # Rosbridge Suite pour interface web
 RUN git clone -b ros2 https://github.com/RobotWebTools/rosbridge_suite.git

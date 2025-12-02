@@ -41,12 +41,14 @@ wait_for_robot() {
     done
     
     echo ""
-    echo "ERROR: Robot not detected after ${max_wait}s"
+    echo "WARNING: Robot not detected after ${max_wait}s"
     echo "Please check:"
     echo "  1. Robot is powered on"
     echo "  2. Robot is connected to WiFi"
     echo "  3. ESP32 can reach micro-ROS agent (port 8888)"
-    return 1
+    echo ""
+    echo "Container will continue running. Robot can connect later."
+    return 0
 }
 
 # Fonction pour activer Nav2

@@ -29,6 +29,15 @@ const state = {
         '/tf': false,
         '/odom': false,
         '/battery_state': false
+    },
+    nodes: {
+        // Container nodes (always running)
+        '/slam_toolbox': false,
+        '/bt_navigator': false,
+        '/controller_server': false,
+        '/planner_server': false,
+        // Robot nodes (only when robot connected)
+        '/kaiaai_telemetry_node': false
     }
 };
 
@@ -53,8 +62,8 @@ function initializeMap() {
     // Initialize Leaflet map
     state.map = L.map('map', {
         crs: L.CRS.Simple,
-        minZoom: -2,
-        maxZoom: 4,
+        minZoom: -5,
+        maxZoom: 10,
         zoomControl: true,
         attributionControl: false
     }).setView([0, 0], 0);
@@ -287,6 +296,9 @@ function checkServices() {
         // by verifying if /scan topic is publishing data
         checkRobotHardware();
 
+        // Check nodes status
+        checkNodes();
+
         // Update main status indicators
         const hasNav = state.services['/cmd_vel'] && state.services['/odom'];
         const hasMap = state.services['/map'] && state.services['/scan'];
@@ -338,6 +350,25 @@ function checkRobotHardware() {
         clearTimeout(timeout);
         logCommand('✓ Robot hardware connected (receiving /scan data)');
         scanListener.unsubscribe();
+    });
+}
+
+function checkNodes() {
+    if (!state.ros) return;
+
+    state.ros.getNodes((nodes) => {
+        // Check each node
+        Object.keys(state.nodes).forEach(nodeName => {
+            const exists = nodes.includes(nodeName);
+            state.nodes[nodeName] = exists;
+            updateNodeStatus(nodeName, exists ? 'active' : 'inactive');
+        });
+
+        logCommand('Nodes checked: ' +
+            Object.values(state.nodes).filter(v => v).length +
+            '/' + Object.keys(state.nodes).length + ' active');
+    }, (error) => {
+        logCommand('Error checking nodes: ' + error);
     });
 }
 
@@ -721,6 +752,21 @@ function updateServiceStatus(serviceName, status) {
         if (item.textContent.includes(serviceName)) {
             const dot = item.querySelector('.service-status-dot');
             // status can be 'active', 'inactive', or 'checking'
+            if (typeof status === 'boolean') {
+                dot.className = 'service-status-dot ' + (status ? 'active' : 'inactive');
+            } else {
+                dot.className = 'service-status-dot ' + status;
+            }
+        }
+    });
+}
+
+function updateNodeStatus(nodeName, status) {
+    // Find the node item in the grid
+    const nodeItems = document.querySelectorAll('.node-item');
+    nodeItems.forEach(item => {
+        if (item.textContent.includes(nodeName)) {
+            const dot = item.querySelector('.service-status-dot');
             if (typeof status === 'boolean') {
                 dot.className = 'service-status-dot ' + (status ? 'active' : 'inactive');
             } else {

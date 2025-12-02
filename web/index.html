@@ -501,8 +501,8 @@
                     <button class="btn btn-danger" id="btnDisconnect" disabled>Disconnect</button>
                 </div>
 
-                <!-- Services Status -->
-                <h3 style="margin-bottom: 0.75rem;">Services Status</h3>
+                <!-- Topics Status -->
+                <h3 style="margin-bottom: 0.75rem;">Topics Status</h3>
                 <div class="service-grid" id="servicesGrid">
                     <div class="service-item">
                         <div class="service-status-dot inactive"></div>
@@ -527,6 +527,35 @@
                     <div class="service-item">
                         <div class="service-status-dot inactive"></div>
                         <span>/battery_state</span>
+                    </div>
+                </div>
+
+                <!-- Nodes Status -->
+                <h3 style="margin-bottom: 0.75rem; margin-top: 1.5rem;">ROS Nodes Status</h3>
+                <div style="margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--text-gray);">Container Nodes</div>
+                <div class="service-grid" id="nodesGrid">
+                    <div class="node-item service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span style="font-size: 0.75rem;">/slam_toolbox</span>
+                    </div>
+                    <div class="node-item service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span style="font-size: 0.75rem;">/bt_navigator</span>
+                    </div>
+                    <div class="node-item service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span style="font-size: 0.75rem;">/controller_server</span>
+                    </div>
+                    <div class="node-item service-item">
+                        <div class="service-status-dot inactive"></div>
+                        <span style="font-size: 0.75rem;">/planner_server</span>
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.5rem; margin-top: 1rem; font-size: 0.75rem; color: var(--text-gray);">Robot Nodes</div>
+                <div class="service-grid">
+                    <div class="node-item service-item" style="grid-column: 1 / -1;">
+                        <div class="service-status-dot inactive"></div>
+                        <span style="font-size: 0.75rem;">/kaiaai_telemetry_node</span>
                     </div>
                 </div>
 

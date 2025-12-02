@@ -268,14 +268,20 @@ function setupROSTopics() {
 function checkServices() {
     if (!state.ros) return;
 
+    // Set all services to checking state
+    Object.keys(state.services).forEach(service => {
+        updateServiceStatus(service, 'checking');
+    });
+
     state.ros.getTopics((result) => {
         const topics = result.topics;
 
-        // Check each service
+        // Check each service with exact match
         Object.keys(state.services).forEach(service => {
-            const exists = topics.some(topic => topic.includes(service));
+            // Use exact match instead of includes to avoid false positives
+            const exists = topics.some(topic => topic === service);
             state.services[service] = exists;
-            updateServiceStatus(service, exists);
+            updateServiceStatus(service, exists ? 'active' : 'inactive');
         });
 
         // Update main status indicators
@@ -290,6 +296,13 @@ function checkServices() {
             '/' + Object.keys(state.services).length + ' active');
     }, (error) => {
         logCommand('Error checking services: ' + error);
+        // Reset all to inactive on error
+        Object.keys(state.services).forEach(service => {
+            state.services[service] = false;
+            updateServiceStatus(service, 'inactive');
+        });
+        updateStatusDot('statusNav', 'offline');
+        updateStatusDot('statusMap', 'offline');
     });
 }
 
@@ -666,13 +679,18 @@ function updateStatusDot(elementId, status) {
     dot.className = 'status-dot ' + status;
 }
 
-function updateServiceStatus(serviceName, active) {
+function updateServiceStatus(serviceName, status) {
     // Find the service item in the grid
     const serviceItems = document.querySelectorAll('.service-item');
     serviceItems.forEach(item => {
         if (item.textContent.includes(serviceName)) {
             const dot = item.querySelector('.service-status-dot');
-            dot.className = 'service-status-dot ' + (active ? 'active' : 'inactive');
+            // status can be 'active', 'inactive', or 'checking'
+            if (typeof status === 'boolean') {
+                dot.className = 'service-status-dot ' + (status ? 'active' : 'inactive');
+            } else {
+                dot.className = 'service-status-dot ' + status;
+            }
         }
     });
 }

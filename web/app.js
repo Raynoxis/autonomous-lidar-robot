@@ -278,11 +278,14 @@ function checkServices() {
 
         // Check each service with exact match
         Object.keys(state.services).forEach(service => {
-            // Use exact match instead of includes to avoid false positives
             const exists = topics.some(topic => topic === service);
             state.services[service] = exists;
             updateServiceStatus(service, exists ? 'active' : 'inactive');
         });
+
+        // Check if robot hardware is actually connected
+        // by verifying if /scan topic is publishing data
+        checkRobotHardware();
 
         // Update main status indicators
         const hasNav = state.services['/cmd_vel'] && state.services['/odom'];
@@ -303,6 +306,38 @@ function checkServices() {
         });
         updateStatusDot('statusNav', 'offline');
         updateStatusDot('statusMap', 'offline');
+    });
+}
+
+function checkRobotHardware() {
+    // Check if robot hardware is connected by listening to /scan topic
+    const scanListener = new ROSLIB.Topic({
+        ros: state.ros,
+        name: '/scan',
+        messageType: 'sensor_msgs/LaserScan'
+    });
+
+    let messageReceived = false;
+    const timeout = setTimeout(() => {
+        if (!messageReceived) {
+            logCommand('⚠ Warning: Robot hardware appears offline (no /scan data)');
+            // Mark scan as warning since topic exists but no data
+            const serviceItems = document.querySelectorAll('.service-item');
+            serviceItems.forEach(item => {
+                if (item.textContent.includes('/scan')) {
+                    const dot = item.querySelector('.service-status-dot');
+                    dot.className = 'service-status-dot checking'; // Orange for warning
+                }
+            });
+        }
+        scanListener.unsubscribe();
+    }, 3000); // Wait 3 seconds for data
+
+    scanListener.subscribe(() => {
+        messageReceived = true;
+        clearTimeout(timeout);
+        logCommand('✓ Robot hardware connected (receiving /scan data)');
+        scanListener.unsubscribe();
     });
 }
 

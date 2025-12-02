@@ -28,7 +28,7 @@ const state = {
         '/scan': false,
         '/tf': false,
         '/odom': false,
-        '/battery': false
+        '/battery_state': false
     }
 };
 

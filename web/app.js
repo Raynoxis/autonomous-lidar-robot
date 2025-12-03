@@ -686,89 +686,7 @@ function setupROSTopics() {
     logCommand('ROS topics initialized');
 }
 
-function checkServices() {
-    if (!state.ros) return;
-
-    // Set all services to checking state
-    Object.keys(state.services).forEach(service => {
-        updateServiceStatus(service, 'checking');
-    });
-
-    state.ros.getTopics((result) => {
-        const topics = result.topics;
-
-        // Check each service with exact match
-        Object.keys(state.services).forEach(service => {
-            const exists = topics.some(topic => topic === service);
-            state.services[service] = exists;
-            updateServiceStatus(service, exists ? 'active' : 'default');
-        });
-
-        // Check if robot hardware is actually connected
-        // by verifying if /scan topic is publishing data
-        checkRobotHardware();
-
-        // Check nodes status
-        checkNodes();
-
-        // Update main status message
-        const activeTopics = Object.values(state.services).filter(v => v).length;
-        const totalTopics = Object.keys(state.services).length;
-
-        if (activeTopics === 0) {
-            updateMainStatus('error', 'ROS connecté - Aucun topic actif (robot déconnecté ?)');
-        } else if (activeTopics < totalTopics) {
-            updateMainStatus('connecting', `ROS connecté - ${activeTopics}/${totalTopics} topics actifs`);
-        } else {
-            updateMainStatus('connected', 'Système opérationnel - Tous les services actifs');
-        }
-
-        updateMiniStatus();
-
-        logCommand('Services checked: ' + activeTopics + '/' + totalTopics + ' active');
-    }, (error) => {
-        logCommand('Error checking services: ' + error);
-        updateMainStatus('error', 'Erreur lors de la vérification des services');
-        // Reset all to default on error
-        Object.keys(state.services).forEach(service => {
-            state.services[service] = false;
-            updateServiceStatus(service, 'default');
-        });
-        updateMiniStatus();
-    });
-}
-
-function checkRobotHardware() {
-    // Check if robot hardware is connected by listening to /scan topic
-    const scanListener = new ROSLIB.Topic({
-        ros: state.ros,
-        name: '/scan',
-        messageType: 'sensor_msgs/LaserScan'
-    });
-
-    let messageReceived = false;
-    const timeout = setTimeout(() => {
-        if (!messageReceived) {
-            logCommand('⚠ Warning: Robot hardware appears offline (no /scan data)');
-            // Mark scan as warning since topic exists but no data
-            const serviceItems = document.querySelectorAll('.service-item');
-            serviceItems.forEach(item => {
-                if (item.textContent.includes('/scan')) {
-                    const dot = item.querySelector('.service-status-dot');
-                    dot.className = 'service-status-dot checking'; // Orange for warning
-                }
-            });
-        }
-        scanListener.unsubscribe();
-    }, 3000); // Wait 3 seconds for data
-
-    scanListener.subscribe(() => {
-        messageReceived = true;
-        clearTimeout(timeout);
-        logCommand('✓ Robot hardware connected (receiving /scan data)');
-        scanListener.unsubscribe();
-    });
-}
+// OBSOLETE - Removed, replaced by checkTopics() and real-time monitoring
 
 function checkNodes() {
     if (!state.ros) return;
@@ -777,15 +695,47 @@ function checkNodes() {
         // Check each node
         Object.keys(state.nodes).forEach(nodeName => {
             const exists = nodes.includes(nodeName);
+            const wasActive = state.nodes[nodeName];
             state.nodes[nodeName] = exists;
-            updateNodeStatus(nodeName, exists ? 'active' : 'default');
+
+            // Determine status based on node type and system state
+            let status = 'default';
+            if (exists) {
+                status = 'active';
+            } else {
+                // Node missing - determine if it's an error
+                const containerNodes = [
+                    '/slam_toolbox', '/bt_navigator', '/controller_server',
+                    '/planner_server', '/behavior_server', '/velocity_smoother',
+                    '/lifecycle_manager_navigation', '/lifecycle_manager_slam',
+                    '/rosbridge_websocket'
+                ];
+                const robotNodes = ['/kaiaai_telemetry_node', '/robot_state_publisher'];
+                const explorationNodes = ['/explore_node'];
+
+                if (containerNodes.includes(nodeName)) {
+                    // Container node missing - always error if we're connected
+                    if (state.systemState !== SystemState.INITIAL &&
+                        state.systemState !== SystemState.CONNECTING_WS) {
+                        status = 'inactive';
+                    }
+                } else if (robotNodes.includes(nodeName)) {
+                    // Robot node - only error if robot should be connected
+                    if (state.systemState === SystemState.ROBOT_READY ||
+                        state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+                        state.systemState === SystemState.EXPLORING) {
+                        status = 'inactive';
+                    }
+                } else if (explorationNodes.includes(nodeName)) {
+                    // Exploration node - only matters if we're exploring
+                    if (state.systemState === SystemState.EXPLORING) {
+                        status = 'inactive';
+                    }
+                }
+            }
+
+            updateNodeStatus(nodeName, status);
         });
-
-        updateMiniStatus();
-
-        logCommand('Nodes checked: ' +
-            Object.values(state.nodes).filter(v => v).length +
-            '/' + Object.keys(state.nodes).length + ' active');
     }, (error) => {
         logCommand('Error checking nodes: ' + error);
     });
@@ -1458,16 +1408,7 @@ function updateNodeStatus(nodeName, status) {
     });
 }
 
-function resetServiceStatus() {
-    Object.keys(state.services).forEach(service => {
-        state.services[service] = false;
-        updateServiceStatus(service, 'default');
-    });
-    Object.keys(state.nodes).forEach(node => {
-        state.nodes[node] = false;
-        updateNodeStatus(node, 'default');
-    });
-}
+// Moved to resetAllStatus() in state machine section - function removed
 
 function logCommand(message) {
     const log = document.getElementById('commandLog');

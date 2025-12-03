@@ -1,45 +1,94 @@
 // MakersPet Loki Control Center - Main Application
 // Modern web interface for robot control
 
+// System States
+const SystemState = {
+    INITIAL: 'initial',
+    CONNECTING_WS: 'connecting_ws',
+    WS_CONNECTED: 'ws_connected',
+    CONTAINER_READY: 'container_ready',
+    ROBOT_DETECTED: 'robot_detected',
+    ROBOT_READY: 'robot_ready',
+    EXPLORATION_AVAILABLE: 'exploration_available',
+    EXPLORING: 'exploring',
+    NAVIGATING: 'navigating',
+    WS_ERROR: 'ws_error',
+    CONTAINER_ERROR: 'container_error',
+    ROBOT_LOST: 'robot_lost',
+    EXPLORATION_ERROR: 'exploration_error'
+};
+
 // Global state
 const state = {
+    // System state
+    systemState: SystemState.INITIAL,
+
+    // ROS connection
     ros: null,
     connected: false,
+
+    // Topics
     cmdVelTopic: null,
     mapTopic: null,
     tfTopic: null,
     odomTopic: null,
     batteryTopic: null,
     scanTopic: null,
+
+    // Actions
     navAction: null,
     exploreAction: null,
+
+    // UI
     joystick: null,
     map: null,
     mapData: null,
     mapLayer: null,
     robotMarker: null,
     goalMarker: null,
+
+    // Robot data
     robotPose: { x: 0, y: 0, theta: 0 },
     homePosition: { x: 0, y: 0 },
     mapBounds: null,
-    services: {
-        '/cmd_vel': false,
+    scanDataReceived: false,
+    batteryDataReceived: false,
+
+    // Monitoring intervals
+    topicsCheckInterval: null,
+    nodesCheckInterval: null,
+    hardwareCheckInterval: null,
+    statusRefreshInterval: null,
+
+    // Topics status
+    topics: {
+        // Container topics
         '/map': false,
-        '/scan': false,
         '/tf': false,
         '/odom': false,
+        '/cmd_vel': false,
+        // Robot topics
+        '/scan': false,
         '/battery_state': false
     },
+
+    // Nodes status
     nodes: {
-        // Container nodes (always running)
+        // Container nodes
         '/slam_toolbox': false,
         '/bt_navigator': false,
         '/controller_server': false,
         '/planner_server': false,
-        // Robot nodes (only when robot connected)
+        '/behavior_server': false,
+        '/velocity_smoother': false,
+        '/lifecycle_manager_navigation': false,
+        '/lifecycle_manager_slam': false,
+        '/rosbridge_websocket': false,
+        // Robot nodes
         '/kaiaai_telemetry_node': false,
-        // Exploration (on demand)
-        '/explore': false
+        '/robot_state_publisher': false,
+        // Exploration nodes
+        '/explore_node': false
     }
 };
 
@@ -49,9 +98,176 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeMap();
     initializeJoystick();
     attachEventListeners();
-    updateMainStatus('waiting', 'En attente de la connexion du robot...');
-    logCommand('System initialized. Please connect to ROS Bridge.');
+    transitionToState(SystemState.INITIAL);
+    logCommand('System initialized. Click Connect to start.');
 });
+
+// === STATE MACHINE ===
+
+function transitionToState(newState) {
+    state.systemState = newState;
+
+    switch (newState) {
+        case SystemState.INITIAL:
+            updateMainStatus('waiting', 'Système initialisé - Cliquez sur Connect');
+            resetAllStatus();
+            break;
+
+        case SystemState.CONNECTING_WS:
+            updateMainStatus('connecting', 'Connexion au ROS Bridge WebSocket...');
+            break;
+
+        case SystemState.WS_CONNECTED:
+            updateMainStatus('connected', 'ROS Bridge OK - Vérification conteneur...');
+            startMonitoring();
+            break;
+
+        case SystemState.CONTAINER_READY:
+            updateMainStatus('connected', 'Conteneur opérationnel - En attente du robot...');
+            break;
+
+        case SystemState.ROBOT_DETECTED:
+            updateMainStatus('connecting', 'Robot détecté - Attente données capteurs...');
+            break;
+
+        case SystemState.ROBOT_READY:
+            updateMainStatus('connected', 'Robot connecté - Tous systèmes opérationnels');
+            // Auto-start map subscription
+            if (!state.mapTopic._subscribeId) {
+                loadMap();
+            }
+            break;
+
+        case SystemState.EXPLORATION_AVAILABLE:
+            updateMainStatus('connected', 'Prêt pour exploration autonome');
+            break;
+
+        case SystemState.EXPLORING:
+            updateMainStatus('connected', 'Exploration autonome en cours...');
+            break;
+
+        case SystemState.NAVIGATING:
+            updateMainStatus('connected', 'Navigation vers objectif...');
+            break;
+
+        case SystemState.WS_ERROR:
+            updateMainStatus('error', 'Erreur ROS Bridge - Vérifiez le serveur');
+            stopMonitoring();
+            break;
+
+        case SystemState.CONTAINER_ERROR:
+            updateMainStatus('error', 'Erreur conteneur - Nodes manquants');
+            break;
+
+        case SystemState.ROBOT_LOST:
+            updateMainStatus('error', 'Robot déconnecté - Vérifiez alimentation');
+            break;
+
+        case SystemState.EXPLORATION_ERROR:
+            updateMainStatus('error', 'Erreur exploration - Node arrêté');
+            break;
+    }
+
+    logCommand(`State: ${newState}`);
+}
+
+function evaluateSystemState() {
+    // Determine current system state based on topics and nodes
+
+    if (!state.connected) {
+        if (state.systemState !== SystemState.INITIAL) {
+            transitionToState(SystemState.WS_ERROR);
+        }
+        return;
+    }
+
+    // Check container nodes
+    const containerNodes = [
+        '/slam_toolbox', '/bt_navigator', '/controller_server',
+        '/planner_server', '/rosbridge_websocket'
+    ];
+    const containerNodesOK = containerNodes.every(n => state.nodes[n]);
+
+    if (!containerNodesOK) {
+        if (state.systemState !== SystemState.CONTAINER_ERROR) {
+            transitionToState(SystemState.CONTAINER_ERROR);
+        }
+        return;
+    }
+
+    // Container is ready
+    if (state.systemState === SystemState.WS_CONNECTED) {
+        transitionToState(SystemState.CONTAINER_READY);
+    }
+
+    // Check robot topics
+    const robotTopicsExist = state.topics['/scan'] && state.topics['/battery_state'];
+    const robotDataOK = state.scanDataReceived && state.batteryDataReceived;
+
+    if (robotTopicsExist && !robotDataOK) {
+        if (state.systemState !== SystemState.ROBOT_DETECTED) {
+            transitionToState(SystemState.ROBOT_DETECTED);
+        }
+        return;
+    }
+
+    if (robotDataOK) {
+        const robotNodeOK = state.nodes['/kaiaai_telemetry_node'];
+
+        if (robotNodeOK) {
+            if (state.systemState !== SystemState.ROBOT_READY &&
+                state.systemState !== SystemState.EXPLORATION_AVAILABLE &&
+                state.systemState !== SystemState.EXPLORING &&
+                state.systemState !== SystemState.NAVIGATING) {
+                transitionToState(SystemState.ROBOT_READY);
+            }
+
+            // Check if map is loaded for exploration
+            if (state.mapData && state.systemState === SystemState.ROBOT_READY) {
+                transitionToState(SystemState.EXPLORATION_AVAILABLE);
+            }
+
+            // Check exploration state
+            if (state.nodes['/explore_node']) {
+                if (state.systemState !== SystemState.EXPLORING) {
+                    transitionToState(SystemState.EXPLORING);
+                }
+            }
+        } else {
+            if (state.systemState === SystemState.ROBOT_READY ||
+                state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+                state.systemState === SystemState.EXPLORING) {
+                transitionToState(SystemState.ROBOT_LOST);
+            }
+        }
+        return;
+    }
+
+    // No robot detected
+    if (state.systemState === SystemState.ROBOT_READY ||
+        state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+        state.systemState === SystemState.EXPLORING) {
+        transitionToState(SystemState.ROBOT_LOST);
+    }
+}
+
+function resetAllStatus() {
+    // Reset all topics
+    Object.keys(state.topics).forEach(topic => {
+        state.topics[topic] = false;
+        updateServiceStatus(topic, 'default');
+    });
+
+    // Reset all nodes
+    Object.keys(state.nodes).forEach(node => {
+        state.nodes[node] = false;
+        updateNodeStatus(node, 'default');
+    });
+
+    state.scanDataReceived = false;
+    state.batteryDataReceived = false;
+    updateMiniStatus();
+}
 
 // === UI INITIALIZATION ===
 
@@ -140,6 +356,122 @@ function initializeJoystick() {
     });
 }
 
+// === MONITORING ===
+
+function startMonitoring() {
+    logCommand('Starting real-time monitoring...');
+
+    // Topics check: 100ms (real-time)
+    state.topicsCheckInterval = setInterval(() => {
+        if (state.connected) {
+            checkTopics();
+        }
+    }, 100);
+
+    // Nodes check: 500ms
+    state.nodesCheckInterval = setInterval(() => {
+        if (state.connected) {
+            checkNodes();
+        }
+    }, 500);
+
+    // Hardware data check: 1s
+    state.hardwareCheckInterval = setInterval(() => {
+        if (state.connected) {
+            checkHardwareData();
+        }
+    }, 1000);
+
+    // State evaluation: 200ms
+    state.statusRefreshInterval = setInterval(() => {
+        if (state.connected) {
+            evaluateSystemState();
+            updateMiniStatus();
+        }
+    }, 200);
+}
+
+function stopMonitoring() {
+    if (state.topicsCheckInterval) {
+        clearInterval(state.topicsCheckInterval);
+        state.topicsCheckInterval = null;
+    }
+    if (state.nodesCheckInterval) {
+        clearInterval(state.nodesCheckInterval);
+        state.nodesCheckInterval = null;
+    }
+    if (state.hardwareCheckInterval) {
+        clearInterval(state.hardwareCheckInterval);
+        state.hardwareCheckInterval = null;
+    }
+    if (state.statusRefreshInterval) {
+        clearInterval(state.statusRefreshInterval);
+        state.statusRefreshInterval = null;
+    }
+    logCommand('Monitoring stopped');
+}
+
+function checkTopics() {
+    if (!state.ros) return;
+
+    state.ros.getTopics((result) => {
+        const topics = result.topics;
+
+        Object.keys(state.topics).forEach(topic => {
+            const exists = topics.some(t => t === topic);
+            const wasActive = state.topics[topic];
+            state.topics[topic] = exists;
+
+            // Determine status
+            let status = 'default';
+            if (exists) {
+                // Topic exists
+                if (topic === '/scan' || topic === '/battery_state') {
+                    // Robot topics - check if data is received
+                    if (topic === '/scan' && state.scanDataReceived) {
+                        status = 'active';
+                    } else if (topic === '/battery_state' && state.batteryDataReceived) {
+                        status = 'active';
+                    } else {
+                        status = 'checking'; // Topic exists but no data yet
+                    }
+                } else {
+                    status = 'active';
+                }
+            } else {
+                // Topic doesn't exist
+                if (state.systemState === SystemState.CONTAINER_READY ||
+                    state.systemState === SystemState.ROBOT_DETECTED ||
+                    state.systemState === SystemState.ROBOT_READY ||
+                    state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+                    state.systemState === SystemState.EXPLORING) {
+                    // Should exist but doesn't - error
+                    if (topic === '/scan' || topic === '/battery_state') {
+                        // Robot topics - only error if robot should be connected
+                        if (state.systemState === SystemState.ROBOT_READY ||
+                            state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+                            state.systemState === SystemState.EXPLORING) {
+                            status = 'inactive';
+                        }
+                    } else {
+                        // Container topics - always error if missing
+                        status = 'inactive';
+                    }
+                }
+            }
+
+            updateServiceStatus(topic, status);
+        });
+    }, (error) => {
+        logCommand('Error checking topics: ' + error);
+    });
+}
+
+function checkHardwareData() {
+    // Reset data flags - will be set by topic callbacks if data arrives
+    // This check runs every 1s to verify data is still flowing
+}
+
 // === EVENT LISTENERS ===
 
 function attachEventListeners() {
@@ -157,7 +489,6 @@ function attachEventListeners() {
     document.getElementById('btnRefreshTopics').addEventListener('click', refreshTopics);
 
     // SLAM commands
-    document.getElementById('btnLoadMap').addEventListener('click', loadMap);
     document.getElementById('btnSaveMap').addEventListener('click', saveMap);
     document.getElementById('btnLoadSavedMap').addEventListener('click', loadSavedMap);
     document.getElementById('btnClearMap').addEventListener('click', clearMap);
@@ -221,59 +552,37 @@ function connectToROS() {
     const url = document.getElementById('rosUrl').value;
 
     logCommand('Connecting to ROS Bridge...');
-    updateMainStatus('connecting', 'Connexion au ROS Bridge en cours...');
+    transitionToState(SystemState.CONNECTING_WS);
 
     state.ros = new ROSLIB.Ros({ url: url });
 
     state.ros.on('connection', () => {
         state.connected = true;
-        updateMainStatus('connected', 'ROS Bridge connecté - Vérification des services...');
-        logCommand('✓ Connected to ROS Bridge');
+        logCommand('✓ Connected to ROS Bridge WebSocket');
 
         document.getElementById('btnConnect').disabled = true;
         document.getElementById('btnDisconnect').disabled = false;
 
         setupROSTopics();
-        checkServices();
-        updateMiniStatus();
-
-        // Auto-start live map
-        setTimeout(() => {
-            loadMap();
-        }, 2000);
-
-        // Auto-refresh status every 5 seconds
-        state.statusRefreshInterval = setInterval(() => {
-            if (state.connected) {
-                checkServices();
-                checkNodes();
-            }
-        }, 5000);
+        transitionToState(SystemState.WS_CONNECTED);
     });
 
     state.ros.on('error', (error) => {
         state.connected = false;
-        updateMainStatus('error', 'Erreur de connexion au ROS Bridge');
-        logCommand('✗ Connection error: ' + error);
-        updateMiniStatus();
+        logCommand('✗ WebSocket error: ' + error);
+        transitionToState(SystemState.WS_ERROR);
     });
 
     state.ros.on('close', () => {
         state.connected = false;
-        updateMainStatus('waiting', 'Déconnecté - En attente de connexion...');
         logCommand('Disconnected from ROS Bridge');
 
         document.getElementById('btnConnect').disabled = false;
         document.getElementById('btnDisconnect').disabled = true;
 
-        // Stop auto-refresh
-        if (state.statusRefreshInterval) {
-            clearInterval(state.statusRefreshInterval);
-            state.statusRefreshInterval = null;
-        }
-
-        resetServiceStatus();
-        updateMiniStatus();
+        stopMonitoring();
+        resetAllStatus();
+        transitionToState(SystemState.INITIAL);
     });
 }
 
@@ -324,6 +633,9 @@ function setupROSTopics() {
     });
 
     state.batteryTopic.subscribe((message) => {
+        // Mark that battery data is being received
+        state.batteryDataReceived = true;
+
         const voltage = message.voltage || message.percentage;
         const batteryText = voltage ? voltage.toFixed(2) + 'V' : 'N/A';
 
@@ -351,6 +663,9 @@ function setupROSTopics() {
     });
 
     state.scanTopic.subscribe((message) => {
+        // Mark that scan data is being received
+        state.scanDataReceived = true;
+
         // Get min/max range from scan data
         const ranges = message.ranges.filter(r => r > message.range_min && r < message.range_max);
         if (ranges.length > 0) {

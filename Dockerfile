@@ -4,15 +4,16 @@ FROM docker.io/osrf/ros:iron-desktop-full
 
 # Métadonnées
 LABEL maintainer="MakersPet Web Navigation"
-LABEL description="ROS2 Iron container for MakersPet Mini (120mm) with web interface and autonomous exploration"
+LABEL description="ROS2 Iron container for MakersPet Mini (120mm) with modern React web interface and autonomous exploration"
 
 # Variables d'environnement
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=iron
 ENV WORKSPACE=/app/ros_ws
 ENV UROS_WS=/app/uros_ws
+ENV NODE_VERSION=20
 
-# Installation des dépendances système
+# Installation des dépendances système + Node.js
 RUN apt-get update && apt-get install -y \
     git \
     python3-pip \
@@ -24,7 +25,16 @@ RUN apt-get update && apt-get install -y \
     nano \
     net-tools \
     iputils-ping \
+    ca-certificates \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
+
+# Installation de Node.js 20.x LTS
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/* && \
+    node --version && \
+    npm --version
 
 # Installation des dépendances Python pour RosBridge
 RUN pip3 install --no-cache-dir \
@@ -105,19 +115,30 @@ RUN /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
 # Retour au workspace principal
 WORKDIR /app
 
-# Copie des fichiers de configuration
+# Copie des fichiers de configuration ROS
 COPY config/ /app/config/
 COPY launch/ /app/launch/
+
+# Copie du code source web et build du frontend React
+COPY web/package*.json /app/web/
+WORKDIR /app/web
+RUN npm ci --only=production
+
 COPY web/ /app/web/
+RUN npm run build && \
+    ls -la dist/ && \
+    echo "Frontend build completed successfully"
 
 # Création des répertoires de données persistantes
+WORKDIR /app
 RUN mkdir -p /app/maps /app/logs
 
-# Port pour RosBridge WebSocket
+# Ports exposés
 EXPOSE 9092
-
-# Port pour serveur web
-EXPOSE 8080
+# Port pour serveur web (frontend)
+EXPOSE 8082
+# Port pour API ROS2 Control
+EXPOSE 8083
 
 # Script d'entrée
 COPY scripts/entrypoint.sh /app/entrypoint.sh

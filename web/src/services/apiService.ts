@@ -1,0 +1,132 @@
+/**
+ * API Service for ROS2 Control API (ros_api.py)
+ * Handles HTTP requests to start/stop exploration and check status
+ */
+
+export interface APIResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+}
+
+export interface ExplorationStartResponse {
+  pid: number;
+}
+
+export interface ProcessStatusResponse {
+  running: boolean;
+  pid?: number;
+}
+
+export interface NodeListResponse {
+  nodes: string[];
+}
+
+export class APIService {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = 'http://192.168.0.10:8083') {
+    this.baseUrl = baseUrl;
+  }
+
+  /**
+   * Generic POST request
+   */
+  private async post<T>(action: string, data?: any): Promise<APIResponse<T>> {
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action, ...data }),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error(`[API] POST ${action} failed:`, error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Generic GET request
+   */
+  private async get<T>(endpoint: string): Promise<APIResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error(`[API] GET ${endpoint} failed:`, error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Start exploration
+   */
+  async startExploration(): Promise<APIResponse<ExplorationStartResponse>> {
+    console.log('[API] Starting exploration...');
+    return this.post<ExplorationStartResponse>('start_explore');
+  }
+
+  /**
+   * Stop exploration
+   */
+  async stopExploration(): Promise<APIResponse> {
+    console.log('[API] Stopping exploration...');
+    return this.post('stop_explore');
+  }
+
+  /**
+   * Check process status
+   */
+  async checkProcess(processName: string): Promise<APIResponse<ProcessStatusResponse>> {
+    return this.post<ProcessStatusResponse>('check_process', { process_name: processName });
+  }
+
+  /**
+   * Get list of ROS2 nodes
+   */
+  async listNodes(): Promise<APIResponse<NodeListResponse>> {
+    return this.post<NodeListResponse>('list_nodes');
+  }
+
+  /**
+   * Get overall status
+   */
+  async getStatus(): Promise<APIResponse<{ running_processes: Record<string, boolean> }>> {
+    return this.get<{ running_processes: Record<string, boolean> }>('/status');
+  }
+
+  /**
+   * Get list of managed processes
+   */
+  async getProcesses(): Promise<APIResponse<{ processes: string[] }>> {
+    return this.get<{ processes: string[] }>('/processes');
+  }
+
+  /**
+   * Set base URL
+   */
+  setBaseUrl(url: string): void {
+    this.baseUrl = url;
+  }
+}
+
+// Export singleton instance
+export const apiService = new APIService();

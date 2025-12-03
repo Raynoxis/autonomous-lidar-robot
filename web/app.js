@@ -176,10 +176,9 @@ function evaluateSystemState() {
         return;
     }
 
-    // Check container nodes
+    // Check container nodes (essential ones only)
     const containerNodes = [
-        '/slam_toolbox', '/bt_navigator', '/controller_server',
-        '/planner_server', '/rosbridge_websocket'
+        '/slam_toolbox', '/bt_navigator', '/controller_server', '/planner_server'
     ];
     const containerNodesOK = containerNodes.every(n => state.nodes[n]);
 
@@ -374,6 +373,7 @@ function startMonitoring() {
         if (state.connected) {
             evaluateSystemState();
             updateMiniStatus();
+            updateHighLevelStatus();
         }
     }, 200);
 }
@@ -516,12 +516,65 @@ function setStatusDotState(dotElement, state) {
 function updateMiniStatus() {
     // Update mini status icons when panel is collapsed
     const rosConnected = state.connected;
-    const topicsActive = Object.values(state.services).filter(v => v).length;
-    const nodesActive = Object.values(state.nodes).filter(v => v).length;
+    const containerOK = state.systemState === SystemState.CONTAINER_READY ||
+                        state.systemState === SystemState.ROBOT_READY ||
+                        state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+                        state.systemState === SystemState.EXPLORING;
+    const robotOK = state.systemState === SystemState.ROBOT_READY ||
+                    state.systemState === SystemState.EXPLORATION_AVAILABLE ||
+                    state.systemState === SystemState.EXPLORING;
 
     document.getElementById('miniStatusROS').className = 'status-dot ' + (rosConnected ? 'online' : 'default');
-    document.getElementById('miniStatusTopics').className = 'status-dot ' + (topicsActive > 0 ? 'online' : 'default');
-    document.getElementById('miniStatusNodes').className = 'status-dot ' + (nodesActive > 0 ? 'online' : 'default');
+    document.getElementById('miniStatusTopics').className = 'status-dot ' + (containerOK ? 'online' : 'default');
+    document.getElementById('miniStatusNodes').className = 'status-dot ' + (robotOK ? 'online' : 'default');
+}
+
+function updateHighLevelStatus() {
+    // Container status
+    const containerNodes = ['/slam_toolbox', '/bt_navigator', '/controller_server', '/planner_server'];
+    const containerOK = containerNodes.every(n => state.nodes[n]);
+
+    let containerStatus = 'default';
+    if (state.systemState === SystemState.WS_ERROR) {
+        containerStatus = 'inactive';
+    } else if (state.systemState === SystemState.CONTAINER_ERROR) {
+        containerStatus = 'inactive';
+    } else if (containerOK) {
+        containerStatus = 'active';
+    } else if (state.connected) {
+        containerStatus = 'checking';
+    }
+
+    document.getElementById('statusContainer').className = 'service-status-dot ' + containerStatus;
+
+    // Robot status
+    const robotDataOK = state.scanDataReceived && state.batteryDataReceived;
+    const robotNodeOK = state.nodes['/kaiaai_telemetry_node'];
+
+    let robotStatus = 'default';
+    if (state.systemState === SystemState.ROBOT_LOST) {
+        robotStatus = 'inactive';
+    } else if (robotDataOK && robotNodeOK) {
+        robotStatus = 'active';
+    } else if (state.systemState === SystemState.CONTAINER_READY) {
+        robotStatus = 'default'; // Waiting for robot
+    }
+
+    document.getElementById('statusRobot').className = 'service-status-dot ' + robotStatus;
+
+    // Exploration status
+    const exploreNodeOK = state.nodes['/explore_node'];
+
+    let explorationStatus = 'default';
+    if (state.systemState === SystemState.EXPLORING && exploreNodeOK) {
+        explorationStatus = 'active';
+    } else if (state.systemState === SystemState.EXPLORATION_AVAILABLE) {
+        explorationStatus = 'default'; // Ready but not started
+    } else if (state.systemState === SystemState.EXPLORING && !exploreNodeOK) {
+        explorationStatus = 'inactive'; // Should be running but isn't
+    }
+
+    document.getElementById('statusExploration').className = 'service-status-dot ' + explorationStatus;
 }
 
 // === ROS CONNECTION ===

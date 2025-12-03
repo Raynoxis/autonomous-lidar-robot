@@ -647,32 +647,20 @@
                     <button class="btn btn-danger" id="btnDisconnect" disabled>Disconnect</button>
                 </div>
 
-                <!-- Topics Status -->
-                <h3 style="margin-bottom: 0.75rem; margin-top: 1.5rem;">Topics Status</h3>
-                <div class="service-grid" id="servicesGrid">
-                    <div class="service-item">
-                        <div class="service-status-dot default"></div>
-                        <span>/cmd_vel</span>
+                <!-- High-Level Status -->
+                <h3 style="margin-bottom: 0.75rem; margin-top: 1.5rem;">Système</h3>
+                <div class="service-grid">
+                    <div class="service-item" style="grid-column: 1 / -1;">
+                        <div class="service-status-dot default" id="statusContainer"></div>
+                        <span style="font-weight: bold;">Conteneur</span>
                     </div>
-                    <div class="service-item">
-                        <div class="service-status-dot default"></div>
-                        <span>/map</span>
+                    <div class="service-item" style="grid-column: 1 / -1;">
+                        <div class="service-status-dot default" id="statusRobot"></div>
+                        <span style="font-weight: bold;">Robot</span>
                     </div>
-                    <div class="service-item">
-                        <div class="service-status-dot default"></div>
-                        <span>/scan</span>
-                    </div>
-                    <div class="service-item">
-                        <div class="service-status-dot default"></div>
-                        <span>/tf</span>
-                    </div>
-                    <div class="service-item">
-                        <div class="service-status-dot default"></div>
-                        <span>/odom</span>
-                    </div>
-                    <div class="service-item">
-                        <div class="service-status-dot default"></div>
-                        <span>/battery_state</span>
+                    <div class="service-item" style="grid-column: 1 / -1;">
+                        <div class="service-status-dot default" id="statusExploration"></div>
+                        <span style="font-weight: bold;">Exploration</span>
                     </div>
                 </div>
 

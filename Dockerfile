@@ -122,12 +122,14 @@ COPY launch/ /app/launch/
 # Copie du code source web et build du frontend React
 COPY web/package*.json /app/web/
 WORKDIR /app/web
-RUN npm ci --only=production
+RUN npm ci
 
 COPY web/ /app/web/
 RUN npm run build && \
     ls -la dist/ && \
-    echo "Frontend build completed successfully"
+    echo "Frontend build completed successfully" && \
+    rm -rf node_modules && \
+    npm ci --omit=dev
 
 # Création des répertoires de données persistantes
 WORKDIR /app

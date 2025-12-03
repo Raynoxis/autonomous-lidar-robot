@@ -103,7 +103,7 @@ function initializeJoystick() {
     state.joystick = nipplejs.create({
         zone: joystickZone,
         mode: 'static',
-        position: { left: '100px', top: '100px' },
+        position: { left: '50%', top: '50%' },
         color: '#2563eb',
         size: 150,
         restJoystick: true,
@@ -241,6 +241,14 @@ function connectToROS() {
         setTimeout(() => {
             loadMap();
         }, 2000);
+
+        // Auto-refresh status every 5 seconds
+        state.statusRefreshInterval = setInterval(() => {
+            if (state.connected) {
+                checkServices();
+                checkNodes();
+            }
+        }, 5000);
     });
 
     state.ros.on('error', (error) => {
@@ -257,6 +265,12 @@ function connectToROS() {
 
         document.getElementById('btnConnect').disabled = false;
         document.getElementById('btnDisconnect').disabled = true;
+
+        // Stop auto-refresh
+        if (state.statusRefreshInterval) {
+            clearInterval(state.statusRefreshInterval);
+            state.statusRefreshInterval = null;
+        }
 
         resetServiceStatus();
         updateMiniStatus();
@@ -561,18 +575,8 @@ function loadMap() {
     logCommand('Starting live map updates...');
 
     let firstMapReceived = false;
-    let lastUpdateTime = 0;
-    const UPDATE_INTERVAL = 1000; // Update map every 1 second max
 
     state.mapTopic.subscribe((message) => {
-        const now = Date.now();
-
-        // Throttle updates to avoid too many redraws
-        if (now - lastUpdateTime < UPDATE_INTERVAL && firstMapReceived) {
-            return;
-        }
-        lastUpdateTime = now;
-
         state.mapData = {
             width: message.info.width,
             height: message.info.height,
@@ -588,7 +592,7 @@ function loadMap() {
 
         if (!firstMapReceived) {
             logCommand(`✓ Map loaded: ${state.mapData.width}x${state.mapData.height} @ ${state.mapData.resolution}m/px`);
-            logCommand('✓ Live map updates active (1Hz)');
+            logCommand('✓ Real-time live map updates active');
             firstMapReceived = true;
         }
 

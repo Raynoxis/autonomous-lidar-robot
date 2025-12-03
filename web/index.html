@@ -378,12 +378,17 @@
             position: absolute;
             top: 1rem;
             left: 1rem;
-            z-index: 400;
+            z-index: 399;
             background: rgba(31, 41, 55, 0.95);
             padding: 1rem;
             border-radius: 0.5rem;
             border: 1px solid var(--border-color);
             max-width: 300px;
+            pointer-events: none;
+        }
+
+        .map-overlay > * {
+            pointer-events: auto;
         }
 
         .map-overlay-title {

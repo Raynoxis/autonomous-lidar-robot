@@ -561,8 +561,18 @@ function loadMap() {
     logCommand('Starting live map updates...');
 
     let firstMapReceived = false;
+    let lastUpdateTime = 0;
+    const UPDATE_INTERVAL = 1000; // Update map every 1 second max
 
     state.mapTopic.subscribe((message) => {
+        const now = Date.now();
+
+        // Throttle updates to avoid too many redraws
+        if (now - lastUpdateTime < UPDATE_INTERVAL && firstMapReceived) {
+            return;
+        }
+        lastUpdateTime = now;
+
         state.mapData = {
             width: message.info.width,
             height: message.info.height,
@@ -574,11 +584,11 @@ function loadMap() {
             data: message.data
         };
 
-        renderMapOnLeaflet();
+        renderMapOnLeaflet(firstMapReceived);
 
         if (!firstMapReceived) {
             logCommand(`✓ Map loaded: ${state.mapData.width}x${state.mapData.height} @ ${state.mapData.resolution}m/px`);
-            logCommand('✓ Live map updates active');
+            logCommand('✓ Live map updates active (1Hz)');
             firstMapReceived = true;
         }
 
@@ -586,7 +596,7 @@ function loadMap() {
     });
 }
 
-function renderMapOnLeaflet() {
+function renderMapOnLeaflet(isFirstMap = false) {
     if (!state.mapData) return;
 
     // Create canvas for map
@@ -649,14 +659,19 @@ function renderMapOnLeaflet() {
 
     state.mapBounds = { minX, minY, maxX, maxY };
 
-    // Remove old layer
+    // Remove old layer and add new one
     if (state.mapLayer) {
         state.map.removeLayer(state.mapLayer);
     }
 
     // Add new map layer
     state.mapLayer = L.imageOverlay(imageUrl, bounds).addTo(state.map);
-    state.map.fitBounds(bounds);
+
+    // Only fit bounds on first map load, not on updates
+    // This prevents the map from jumping around during exploration
+    if (!isFirstMap) {
+        state.map.fitBounds(bounds);
+    }
 
     // Update robot marker
     updateRobotMarker();

@@ -181,9 +181,13 @@ function evaluateSystemState() {
         '/slam_toolbox', '/bt_navigator', '/controller_server', '/planner_server'
     ];
     const containerNodesOK = containerNodes.every(n => state.nodes[n]);
+    const containerNodesCount = containerNodes.filter(n => state.nodes[n]).length;
 
-    if (!containerNodesOK) {
-        if (state.systemState !== SystemState.CONTAINER_ERROR) {
+    // Be tolerant - allow time for nodes to start (at least 2/4 critical nodes)
+    if (!containerNodesOK && containerNodesCount < 2) {
+        // Only error if we've been connected for a while and still not enough nodes
+        if (state.systemState !== SystemState.CONTAINER_ERROR &&
+            state.systemState !== SystemState.WS_CONNECTED) {
             transitionToState(SystemState.CONTAINER_ERROR);
         }
         return;
@@ -354,12 +358,14 @@ function startMonitoring() {
         }
     }, 100);
 
-    // Nodes check: 500ms
-    state.nodesCheckInterval = setInterval(() => {
-        if (state.connected) {
-            checkNodes();
-        }
-    }, 500);
+    // Nodes check: 500ms (start after 2s delay to let nodes initialize)
+    setTimeout(() => {
+        state.nodesCheckInterval = setInterval(() => {
+            if (state.connected) {
+                checkNodes();
+            }
+        }, 500);
+    }, 2000);
 
     // Hardware data check: 1s
     state.hardwareCheckInterval = setInterval(() => {

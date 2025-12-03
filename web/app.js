@@ -7,7 +7,6 @@ const SystemState = {
     CONNECTING_WS: 'connecting_ws',
     WS_CONNECTED: 'ws_connected',
     CONTAINER_READY: 'container_ready',
-    ROBOT_DETECTED: 'robot_detected',
     ROBOT_READY: 'robot_ready',
     EXPLORATION_AVAILABLE: 'exploration_available',
     EXPLORING: 'exploring',
@@ -126,10 +125,6 @@ function transitionToState(newState) {
             updateMainStatus('connected', 'Conteneur opérationnel - En attente du robot...');
             break;
 
-        case SystemState.ROBOT_DETECTED:
-            updateMainStatus('connecting', 'Robot détecté - Attente données capteurs...');
-            break;
-
         case SystemState.ROBOT_READY:
             updateMainStatus('connected', 'Robot connecté - Tous systèmes opérationnels');
             // Auto-start map subscription
@@ -200,16 +195,8 @@ function evaluateSystemState() {
         transitionToState(SystemState.CONTAINER_READY);
     }
 
-    // Check robot topics
-    const robotTopicsExist = state.topics['/scan'] && state.topics['/battery_state'];
+    // Check robot data (not just topics - topics exist even when robot is off)
     const robotDataOK = state.scanDataReceived && state.batteryDataReceived;
-
-    if (robotTopicsExist && !robotDataOK) {
-        if (state.systemState !== SystemState.ROBOT_DETECTED) {
-            transitionToState(SystemState.ROBOT_DETECTED);
-        }
-        return;
-    }
 
     if (robotDataOK) {
         const robotNodeOK = state.nodes['/kaiaai_telemetry_node'];
@@ -427,36 +414,27 @@ function checkTopics() {
             if (exists) {
                 // Topic exists
                 if (topic === '/scan' || topic === '/battery_state') {
-                    // Robot topics - check if data is received
-                    if (topic === '/scan' && state.scanDataReceived) {
-                        status = 'active';
-                    } else if (topic === '/battery_state' && state.batteryDataReceived) {
-                        status = 'active';
-                    } else {
-                        status = 'checking'; // Topic exists but no data yet
+                    // Robot topics - check if data is actually received
+                    if (topic === '/scan') {
+                        status = state.scanDataReceived ? 'active' : 'default';
+                    } else if (topic === '/battery_state') {
+                        status = state.batteryDataReceived ? 'active' : 'default';
                     }
                 } else {
+                    // Container topics - active if they exist
                     status = 'active';
                 }
             } else {
                 // Topic doesn't exist
                 if (state.systemState === SystemState.CONTAINER_READY ||
-                    state.systemState === SystemState.ROBOT_DETECTED ||
                     state.systemState === SystemState.ROBOT_READY ||
                     state.systemState === SystemState.EXPLORATION_AVAILABLE ||
                     state.systemState === SystemState.EXPLORING) {
-                    // Should exist but doesn't - error
-                    if (topic === '/scan' || topic === '/battery_state') {
-                        // Robot topics - only error if robot should be connected
-                        if (state.systemState === SystemState.ROBOT_READY ||
-                            state.systemState === SystemState.EXPLORATION_AVAILABLE ||
-                            state.systemState === SystemState.EXPLORING) {
-                            status = 'inactive';
-                        }
-                    } else {
-                        // Container topics - always error if missing
-                        status = 'inactive';
+                    // Container topics should always exist
+                    if (topic !== '/scan' && topic !== '/battery_state') {
+                        status = 'inactive'; // Error - missing container topic
                     }
+                    // Robot topics stay default (gray) if they don't exist
                 }
             }
 

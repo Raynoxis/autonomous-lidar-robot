@@ -43,8 +43,8 @@ kaiaai_telemetry_node:
 
     battery:
       topic_name_pub: "battery_state"
-      voltage_full: 9.0
-      voltage_empty: 6.8
+      voltage_full: 8.4
+      voltage_empty: 6.0
 
     wifi:
       topic_name_pub: "wifi_state"

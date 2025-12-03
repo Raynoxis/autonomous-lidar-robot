@@ -1,4 +1,4 @@
-// MakersPet Loki Control Center - Main Application
+// MakersPet Mini Control Center - Main Application
 // Modern web interface for robot control
 
 // System States
@@ -1473,6 +1473,6 @@ window.robotControl = {
     navigate: navigateToPoint
 };
 
-console.log('MakersPet Loki Control Center initialized');
+console.log('MakersPet Mini Control Center initialized');
 console.log('Access robot state: window.robotState');
 console.log('Access robot control: window.robotControl');

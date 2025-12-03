@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  makerspet-loki-web:
+  makerspet-mini-web:
     build:
       context: .
       dockerfile: Dockerfile
-    image: makerspet-loki-web:latest
-    container_name: makerspet-loki-web
+    image: makerspet-mini-web:latest
+    container_name: makerspet-mini-web
     network_mode: host
     privileged: true
     

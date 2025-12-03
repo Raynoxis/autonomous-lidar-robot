@@ -236,6 +236,11 @@ function connectToROS() {
         setupROSTopics();
         checkServices();
         updateMiniStatus();
+
+        // Auto-start live map
+        setTimeout(() => {
+            loadMap();
+        }, 2000);
     });
 
     state.ros.on('error', (error) => {
@@ -843,21 +848,35 @@ function startExploration() {
         return;
     }
 
-    // Check if explore node is active
-    if (!state.nodes['/explore']) {
-        logCommand('✗ Exploration node not active. Please start explore_lite first.');
-        updateMainStatus('error', 'Node /explore non actif - Démarrez explore_lite');
-        return;
-    }
+    logCommand('Starting exploration node...');
+    updateMainStatus('connecting', 'Démarrage de l\'exploration...');
 
-    logCommand('Starting autonomous exploration...');
-    updateMainStatus('connected', 'Exploration autonome en cours...');
+    // Call ROS2 Control API to start explore_lite
+    fetch('http://192.168.0.10:8083/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start_explore' })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            logCommand('✓ Exploration node started (PID: ' + data.pid + ')');
+            updateMainStatus('connected', 'Exploration autonome en cours...');
 
-    // explore_lite starts automatically when the node is launched
-    // We just need to verify it's running and has an active goal
-    setTimeout(() => {
-        checkExploration();
-    }, 2000);
+            // Wait a bit then check node status
+            setTimeout(() => {
+                checkNodes();
+                checkExploration();
+            }, 3000);
+        } else {
+            logCommand('✗ Failed to start exploration: ' + data.message);
+            updateMainStatus('error', 'Erreur démarrage exploration: ' + data.message);
+        }
+    })
+    .catch(error => {
+        logCommand('✗ Error calling ROS2 API: ' + error);
+        updateMainStatus('error', 'Erreur API ROS2 - Vérifiez le serveur');
+    });
 }
 
 function stopExploration() {
@@ -867,17 +886,41 @@ function stopExploration() {
     }
 
     logCommand('Stopping exploration...');
+    updateMainStatus('connecting', 'Arrêt de l\'exploration...');
 
-    // Cancel any active navigation goals
-    if (state.navAction) {
-        cancelNavigation();
-    }
+    // Call ROS2 Control API to stop explore_lite
+    fetch('http://192.168.0.10:8083/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'stop_explore' })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            logCommand('✓ Exploration stopped');
+            updateMainStatus('connected', 'Exploration arrêtée');
 
-    // Stop the robot
-    publishVelocity(0, 0);
+            // Cancel any active navigation goals
+            if (state.navAction) {
+                cancelNavigation();
+            }
 
-    updateMainStatus('connected', 'Exploration arrêtée');
-    logCommand('✓ Exploration stopped');
+            // Stop the robot
+            publishVelocity(0, 0);
+
+            // Refresh node status
+            setTimeout(() => {
+                checkNodes();
+            }, 2000);
+        } else {
+            logCommand('✗ Failed to stop exploration: ' + data.message);
+            updateMainStatus('error', 'Erreur arrêt exploration: ' + data.message);
+        }
+    })
+    .catch(error => {
+        logCommand('✗ Error calling ROS2 API: ' + error);
+        updateMainStatus('error', 'Erreur API ROS2');
+    });
 }
 
 function checkExploration() {

@@ -143,12 +143,18 @@ echo "✓ System Ready!"
 echo "==================================="
 echo "Web Interface: http://<HOST>:8082/index.html"
 echo "RosBridge WebSocket: ws://<HOST>:9092"
+echo "ROS2 Control API: http://<HOST>:8083"
 echo ""
 echo "Active topics:"
 ros2 topic list 2>/dev/null | grep -E "/scan|/map|/odom|/cmd_vel" || echo "  (listing...)"
 echo ""
 echo "Active nodes: $(ros2 node list 2>/dev/null | wc -l)"
 echo ""
+
+# 7. Start ROS2 Control API
+echo "Starting ROS2 Control API on port 8083..."
+python3 /app/web/ros_api.py > /app/logs/ros_api.log 2>&1 &
+
 echo "Press Ctrl+C to stop"
 echo ""
 

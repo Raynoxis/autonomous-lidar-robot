@@ -37,7 +37,9 @@ const state = {
         '/controller_server': false,
         '/planner_server': false,
         // Robot nodes (only when robot connected)
-        '/kaiaai_telemetry_node': false
+        '/kaiaai_telemetry_node': false,
+        // Exploration (on demand)
+        '/explore': false
     }
 };
 
@@ -47,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeMap();
     initializeJoystick();
     attachEventListeners();
+    updateMainStatus('waiting', 'En attente de la connexion du robot...');
     logCommand('System initialized. Please connect to ROS Bridge.');
 });
 
@@ -68,9 +71,10 @@ function initializeMap() {
         attributionControl: false
     }).setView([0, 0], 0);
 
-    // Add dark tile layer
+    // Add neutral gray background
     const bounds = [[-10, -10], [10, 10]];
-    L.imageOverlay('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', bounds).addTo(state.map);
+    // Gray pixel instead of green
+    L.imageOverlay('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM0NDT8DwADHgEz8mY6qgAAAABJRU5ErkJggg==', bounds).addTo(state.map);
     state.map.fitBounds(bounds);
 
     // Map click handler for navigation
@@ -99,9 +103,11 @@ function initializeJoystick() {
     state.joystick = nipplejs.create({
         zone: joystickZone,
         mode: 'static',
-        position: { left: '50%', top: '50%' },
+        position: { left: '100px', top: '100px' },
         color: '#2563eb',
-        size: 150
+        size: 150,
+        restJoystick: true,
+        restOpacity: 0.5
     });
 
     // Joystick event handlers
@@ -137,6 +143,9 @@ function initializeJoystick() {
 // === EVENT LISTENERS ===
 
 function attachEventListeners() {
+    // Status panel toggle
+    document.getElementById('statusPanelToggle').addEventListener('click', toggleStatusPanel);
+
     // Connection
     document.getElementById('btnConnect').addEventListener('click', connectToROS);
     document.getElementById('btnDisconnect').addEventListener('click', disconnectFromROS);
@@ -147,9 +156,15 @@ function attachEventListeners() {
     // Topics
     document.getElementById('btnRefreshTopics').addEventListener('click', refreshTopics);
 
-    // Map commands
+    // SLAM commands
     document.getElementById('btnLoadMap').addEventListener('click', loadMap);
+    document.getElementById('btnSaveMap').addEventListener('click', saveMap);
+    document.getElementById('btnLoadSavedMap').addEventListener('click', loadSavedMap);
+    document.getElementById('btnClearMap').addEventListener('click', clearMap);
+
+    // Quick actions
     document.getElementById('btnClearMarkers').addEventListener('click', clearMarkers);
+    document.getElementById('btnReturnHome').addEventListener('click', returnHome);
 
     // Navigation commands
     document.getElementById('btnNavigateToPoint').addEventListener('click', showNavigationModal);
@@ -161,13 +176,43 @@ function attachEventListeners() {
     document.getElementById('btnStopExplore').addEventListener('click', stopExploration);
     document.getElementById('btnCheckExplore').addEventListener('click', checkExploration);
 
-    // System commands
-    document.getElementById('btnReturnHome').addEventListener('click', returnHome);
-    document.getElementById('btnSaveMap').addEventListener('click', saveMap);
-
     // Modal
     document.getElementById('btnCancelNav').addEventListener('click', hideNavigationModal);
     document.getElementById('btnConfirmNav').addEventListener('click', navigateToPoint);
+}
+
+// === STATUS PANEL TOGGLE ===
+
+function toggleStatusPanel() {
+    const panel = document.getElementById('statusPanel');
+    const container = document.getElementById('mainContainer');
+
+    panel.classList.toggle('collapsed');
+    container.classList.toggle('status-collapsed');
+}
+
+// === STATUS MANAGEMENT ===
+
+function updateMainStatus(state, message) {
+    const statusMessage = document.getElementById('mainStatusMessage');
+    statusMessage.textContent = message;
+    statusMessage.className = 'header-status-message ' + state;
+}
+
+function setStatusDotState(dotElement, state) {
+    // state: 'default' (gray), 'warning' (yellow blinking), 'online' (green), 'offline' (red)
+    dotElement.className = 'service-status-dot ' + state;
+}
+
+function updateMiniStatus() {
+    // Update mini status icons when panel is collapsed
+    const rosConnected = state.connected;
+    const topicsActive = Object.values(state.services).filter(v => v).length;
+    const nodesActive = Object.values(state.nodes).filter(v => v).length;
+
+    document.getElementById('miniStatusROS').className = 'status-dot ' + (rosConnected ? 'online' : 'default');
+    document.getElementById('miniStatusTopics').className = 'status-dot ' + (topicsActive > 0 ? 'online' : 'default');
+    document.getElementById('miniStatusNodes').className = 'status-dot ' + (nodesActive > 0 ? 'online' : 'default');
 }
 
 // === ROS CONNECTION ===
@@ -176,13 +221,13 @@ function connectToROS() {
     const url = document.getElementById('rosUrl').value;
 
     logCommand('Connecting to ROS Bridge...');
-    updateStatusDot('statusROS', 'warning');
+    updateMainStatus('connecting', 'Connexion au ROS Bridge en cours...');
 
     state.ros = new ROSLIB.Ros({ url: url });
 
     state.ros.on('connection', () => {
         state.connected = true;
-        updateStatusDot('statusROS', 'online');
+        updateMainStatus('connected', 'ROS Bridge connecté - Vérification des services...');
         logCommand('✓ Connected to ROS Bridge');
 
         document.getElementById('btnConnect').disabled = true;
@@ -190,25 +235,26 @@ function connectToROS() {
 
         setupROSTopics();
         checkServices();
+        updateMiniStatus();
     });
 
     state.ros.on('error', (error) => {
         state.connected = false;
-        updateStatusDot('statusROS', 'offline');
+        updateMainStatus('error', 'Erreur de connexion au ROS Bridge');
         logCommand('✗ Connection error: ' + error);
+        updateMiniStatus();
     });
 
     state.ros.on('close', () => {
         state.connected = false;
-        updateStatusDot('statusROS', 'offline');
-        updateStatusDot('statusNav', 'offline');
-        updateStatusDot('statusMap', 'offline');
+        updateMainStatus('waiting', 'Déconnecté - En attente de connexion...');
         logCommand('Disconnected from ROS Bridge');
 
         document.getElementById('btnConnect').disabled = false;
         document.getElementById('btnDisconnect').disabled = true;
 
         resetServiceStatus();
+        updateMiniStatus();
     });
 }
 
@@ -260,8 +306,40 @@ function setupROSTopics() {
 
     state.batteryTopic.subscribe((message) => {
         const voltage = message.voltage || message.percentage;
-        document.getElementById('robotBattery').textContent =
-            voltage ? voltage.toFixed(2) + 'V' : 'N/A';
+        const batteryText = voltage ? voltage.toFixed(2) + 'V' : 'N/A';
+
+        document.getElementById('robotBattery').textContent = batteryText;
+        document.getElementById('telemetryBattery').textContent = batteryText;
+
+        // Color code battery level
+        const batteryElement = document.getElementById('telemetryBattery');
+        if (voltage) {
+            if (voltage > 11.5) {
+                batteryElement.style.color = 'var(--success-color)';
+            } else if (voltage > 11.0) {
+                batteryElement.style.color = 'var(--warning-color)';
+            } else {
+                batteryElement.style.color = 'var(--danger-color)';
+            }
+        }
+    });
+
+    // Scan topic for telemetry
+    state.scanTopic = new ROSLIB.Topic({
+        ros: state.ros,
+        name: '/scan',
+        messageType: 'sensor_msgs/LaserScan'
+    });
+
+    state.scanTopic.subscribe((message) => {
+        // Get min/max range from scan data
+        const ranges = message.ranges.filter(r => r > message.range_min && r < message.range_max);
+        if (ranges.length > 0) {
+            const minRange = Math.min(...ranges);
+            const maxRange = Math.max(...ranges);
+            document.getElementById('telemetryScan').textContent =
+                `${minRange.toFixed(2)}m - ${maxRange.toFixed(2)}m`;
+        }
     });
 
     // Navigation action client
@@ -289,7 +367,7 @@ function checkServices() {
         Object.keys(state.services).forEach(service => {
             const exists = topics.some(topic => topic === service);
             state.services[service] = exists;
-            updateServiceStatus(service, exists ? 'active' : 'inactive');
+            updateServiceStatus(service, exists ? 'active' : 'default');
         });
 
         // Check if robot hardware is actually connected
@@ -299,25 +377,30 @@ function checkServices() {
         // Check nodes status
         checkNodes();
 
-        // Update main status indicators
-        const hasNav = state.services['/cmd_vel'] && state.services['/odom'];
-        const hasMap = state.services['/map'] && state.services['/scan'];
+        // Update main status message
+        const activeTopics = Object.values(state.services).filter(v => v).length;
+        const totalTopics = Object.keys(state.services).length;
 
-        updateStatusDot('statusNav', hasNav ? 'online' : 'offline');
-        updateStatusDot('statusMap', hasMap ? 'online' : 'offline');
+        if (activeTopics === 0) {
+            updateMainStatus('error', 'ROS connecté - Aucun topic actif (robot déconnecté ?)');
+        } else if (activeTopics < totalTopics) {
+            updateMainStatus('connecting', `ROS connecté - ${activeTopics}/${totalTopics} topics actifs`);
+        } else {
+            updateMainStatus('connected', 'Système opérationnel - Tous les services actifs');
+        }
 
-        logCommand('Services checked: ' +
-            Object.values(state.services).filter(v => v).length +
-            '/' + Object.keys(state.services).length + ' active');
+        updateMiniStatus();
+
+        logCommand('Services checked: ' + activeTopics + '/' + totalTopics + ' active');
     }, (error) => {
         logCommand('Error checking services: ' + error);
-        // Reset all to inactive on error
+        updateMainStatus('error', 'Erreur lors de la vérification des services');
+        // Reset all to default on error
         Object.keys(state.services).forEach(service => {
             state.services[service] = false;
-            updateServiceStatus(service, 'inactive');
+            updateServiceStatus(service, 'default');
         });
-        updateStatusDot('statusNav', 'offline');
-        updateStatusDot('statusMap', 'offline');
+        updateMiniStatus();
     });
 }
 
@@ -361,8 +444,10 @@ function checkNodes() {
         Object.keys(state.nodes).forEach(nodeName => {
             const exists = nodes.includes(nodeName);
             state.nodes[nodeName] = exists;
-            updateNodeStatus(nodeName, exists ? 'active' : 'inactive');
+            updateNodeStatus(nodeName, exists ? 'active' : 'default');
         });
+
+        updateMiniStatus();
 
         logCommand('Nodes checked: ' +
             Object.values(state.nodes).filter(v => v).length +
@@ -438,10 +523,15 @@ function updateRobotPosition(message) {
                 1 - 2 * (q.y * q.y + q.z * q.z)
             );
 
-            // Update UI
+            // Update UI - Map overlay
             document.getElementById('robotX').textContent = state.robotPose.x.toFixed(2) + ' m';
             document.getElementById('robotY').textContent = state.robotPose.y.toFixed(2) + ' m';
             document.getElementById('robotTheta').textContent = state.robotPose.theta.toFixed(2) + ' rad';
+
+            // Update UI - Telemetry panel
+            document.getElementById('telemetryPosX').textContent = state.robotPose.x.toFixed(2) + ' m';
+            document.getElementById('telemetryPosY').textContent = state.robotPose.y.toFixed(2) + ' m';
+            document.getElementById('telemetryTheta').textContent = (state.robotPose.theta * 180 / Math.PI).toFixed(1) + '°';
 
             // Update robot marker on map
             updateRobotMarker();
@@ -457,7 +547,15 @@ function loadMap() {
         return;
     }
 
-    logCommand('Loading map...');
+    // Check if already subscribed
+    if (state.mapTopic._subscribeId) {
+        logCommand('Already subscribed to map updates');
+        return;
+    }
+
+    logCommand('Starting live map updates...');
+
+    let firstMapReceived = false;
 
     state.mapTopic.subscribe((message) => {
         state.mapData = {
@@ -473,10 +571,13 @@ function loadMap() {
 
         renderMapOnLeaflet();
 
-        logCommand(`✓ Map loaded: ${state.mapData.width}x${state.mapData.height} @ ${state.mapData.resolution}m/px`);
+        if (!firstMapReceived) {
+            logCommand(`✓ Map loaded: ${state.mapData.width}x${state.mapData.height} @ ${state.mapData.resolution}m/px`);
+            logCommand('✓ Live map updates active');
+            firstMapReceived = true;
+        }
 
-        // Unsubscribe after first message
-        state.mapTopic.unsubscribe();
+        // Keep subscribed for live updates (like RViz)
     });
 }
 
@@ -660,9 +761,65 @@ function cancelNavigation() {
 }
 
 function setInitialPose() {
-    logCommand('Click on map to set initial pose');
-    // This would typically publish to /initialpose topic
-    // Implementation depends on Nav2 setup
+    if (!state.ros) {
+        logCommand('Not connected to ROS');
+        return;
+    }
+
+    logCommand('Click on map to set initial robot pose...');
+    updateMainStatus('connecting', 'Cliquez sur la carte pour définir la position initiale...');
+
+    // Enable one-time click handler
+    state.map.once('click', (e) => {
+        const worldCoords = leafletToWorld(e.latlng);
+
+        logCommand(`Setting initial pose at (${worldCoords.x.toFixed(2)}, ${worldCoords.y.toFixed(2)})`);
+
+        // Publish to /initialpose topic
+        const initialPoseTopic = new ROSLIB.Topic({
+            ros: state.ros,
+            name: '/initialpose',
+            messageType: 'geometry_msgs/PoseWithCovarianceStamped'
+        });
+
+        const poseMsg = new ROSLIB.Message({
+            header: {
+                frame_id: 'map',
+                stamp: { sec: 0, nanosec: 0 }
+            },
+            pose: {
+                pose: {
+                    position: { x: worldCoords.x, y: worldCoords.y, z: 0.0 },
+                    orientation: { x: 0, y: 0, z: 0, w: 1.0 }
+                },
+                covariance: [
+                    0.25, 0, 0, 0, 0, 0,
+                    0, 0.25, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0.06853892326654787
+                ]
+            }
+        });
+
+        initialPoseTopic.publish(poseMsg);
+
+        logCommand(`✓ Initial pose set at (${worldCoords.x.toFixed(2)}, ${worldCoords.y.toFixed(2)})`);
+        updateMainStatus('connected', 'Position initiale définie');
+
+        // Add temporary marker
+        const poseMarker = L.circleMarker(e.latlng, {
+            radius: 8,
+            color: '#10b981',
+            fillColor: '#10b981',
+            fillOpacity: 0.5
+        }).addTo(state.map);
+
+        setTimeout(() => {
+            state.map.removeLayer(poseMarker);
+        }, 3000);
+    });
 }
 
 function returnHome() {
@@ -686,23 +843,41 @@ function startExploration() {
         return;
     }
 
-    // Check if explore_lite is running
-    state.ros.getNodes((nodes) => {
-        const exploreNode = nodes.find(n => n.includes('explore'));
-        if (exploreNode) {
-            logCommand('✓ Exploration node found: ' + exploreNode);
-            logCommand('Starting autonomous exploration...');
-            // explore_lite typically starts automatically when launched
-        } else {
-            logCommand('✗ Exploration node not found. Is explore_lite running?');
-        }
-    });
+    // Check if explore node is active
+    if (!state.nodes['/explore']) {
+        logCommand('✗ Exploration node not active. Please start explore_lite first.');
+        updateMainStatus('error', 'Node /explore non actif - Démarrez explore_lite');
+        return;
+    }
+
+    logCommand('Starting autonomous exploration...');
+    updateMainStatus('connected', 'Exploration autonome en cours...');
+
+    // explore_lite starts automatically when the node is launched
+    // We just need to verify it's running and has an active goal
+    setTimeout(() => {
+        checkExploration();
+    }, 2000);
 }
 
 function stopExploration() {
-    // Cancel any navigation goals
-    cancelNavigation();
-    logCommand('Stopping exploration');
+    if (!state.ros) {
+        logCommand('Not connected to ROS');
+        return;
+    }
+
+    logCommand('Stopping exploration...');
+
+    // Cancel any active navigation goals
+    if (state.navAction) {
+        cancelNavigation();
+    }
+
+    // Stop the robot
+    publishVelocity(0, 0);
+
+    updateMainStatus('connected', 'Exploration arrêtée');
+    logCommand('✓ Exploration stopped');
 }
 
 function checkExploration() {
@@ -712,19 +887,140 @@ function checkExploration() {
     }
 
     state.ros.getNodes((nodes) => {
-        const exploreNodes = nodes.filter(n => n.includes('explore'));
-        if (exploreNodes.length > 0) {
-            logCommand('✓ Exploration nodes: ' + exploreNodes.join(', '));
+        const exploreNode = nodes.find(n => n === '/explore');
+
+        if (exploreNode) {
+            logCommand('✓ Exploration node active: /explore');
+            updateMainStatus('connected', 'Exploration active - Node /explore opérationnel');
+
+            // Check topics related to exploration
+            state.ros.getTopics((result) => {
+                const exploreTopics = result.topics.filter(t =>
+                    t.includes('explore') || t.includes('frontier')
+                );
+                if (exploreTopics.length > 0) {
+                    logCommand('✓ Exploration topics: ' + exploreTopics.join(', '));
+                }
+            });
         } else {
-            logCommand('✗ No exploration nodes found');
+            logCommand('✗ Exploration node not found');
+            updateMainStatus('error', 'Node /explore introuvable');
         }
     });
 }
 
-// === SYSTEM ===
+// === SLAM COMMANDS ===
 
 function saveMap() {
-    logCommand('Map saving not implemented yet. Use: ros2 run nav2_map_server map_saver_cli');
+    if (!state.ros) {
+        logCommand('Not connected to ROS');
+        return;
+    }
+
+    const mapName = prompt('Enter map name:', 'my_map');
+    if (!mapName) return;
+
+    logCommand(`Saving map as "${mapName}"...`);
+
+    // Call slam_toolbox serialize map service
+    const saveMapService = new ROSLIB.Service({
+        ros: state.ros,
+        name: '/slam_toolbox/serialize_map',
+        serviceType: 'slam_toolbox/srv/SerializePoseGraph'
+    });
+
+    const request = new ROSLIB.ServiceRequest({
+        filename: `/app/maps/${mapName}`
+    });
+
+    saveMapService.callService(request, (result) => {
+        if (result.result) {
+            logCommand(`✓ Map saved successfully: ${mapName}`);
+            updateMainStatus('connected', `Carte "${mapName}" sauvegardée avec succès`);
+        } else {
+            logCommand(`✗ Failed to save map: ${mapName}`);
+            updateMainStatus('error', 'Erreur lors de la sauvegarde de la carte');
+        }
+    }, (error) => {
+        logCommand('✗ Error saving map: ' + error);
+        updateMainStatus('error', 'Erreur lors de la sauvegarde de la carte');
+    });
+}
+
+function clearMap() {
+    if (!state.ros) {
+        logCommand('Not connected to ROS');
+        return;
+    }
+
+    if (!confirm('Are you sure you want to clear the current map?')) {
+        return;
+    }
+
+    logCommand('Clearing map...');
+
+    // Call slam_toolbox clear changes service
+    const clearService = new ROSLIB.Service({
+        ros: state.ros,
+        name: '/slam_toolbox/clear_changes',
+        serviceType: 'slam_toolbox/srv/Clear'
+    });
+
+    const request = new ROSLIB.ServiceRequest({});
+
+    clearService.callService(request, (result) => {
+        logCommand('✓ Map cleared');
+        updateMainStatus('connected', 'Carte effacée - Nouvelle cartographie en cours');
+
+        // Clear map visualization
+        if (state.mapLayer) {
+            state.map.removeLayer(state.mapLayer);
+            state.mapLayer = null;
+        }
+        state.mapData = null;
+    }, (error) => {
+        logCommand('✗ Error clearing map: ' + error);
+        updateMainStatus('error', 'Erreur lors de l\'effacement de la carte');
+    });
+}
+
+function loadSavedMap() {
+    if (!state.ros) {
+        logCommand('Not connected to ROS');
+        return;
+    }
+
+    const mapName = prompt('Enter map name to load:', 'my_map');
+    if (!mapName) return;
+
+    logCommand(`Loading saved map "${mapName}"...`);
+
+    // Call slam_toolbox deserialize map service
+    const loadMapService = new ROSLIB.Service({
+        ros: state.ros,
+        name: '/slam_toolbox/deserialize_map',
+        serviceType: 'slam_toolbox/srv/DeserializePoseGraph'
+    });
+
+    const request = new ROSLIB.ServiceRequest({
+        filename: `/app/maps/${mapName}`,
+        match_type: 2 // Start at dock
+    });
+
+    loadMapService.callService(request, (result) => {
+        if (result.result) {
+            logCommand(`✓ Saved map loaded: ${mapName}`);
+            updateMainStatus('connected', `Carte "${mapName}" chargée avec succès`);
+            // Trigger map visualization update
+            loadMap();
+        } else {
+            logCommand(`✗ Failed to load map: ${mapName}`);
+            updateMainStatus('error', 'Erreur lors du chargement de la carte');
+        }
+    }, (error) => {
+        logCommand('✗ Error loading saved map: ' + error);
+        updateMainStatus('error', 'Erreur lors du chargement de la carte');
+    });
 }
 
 // === UTILITY FUNCTIONS ===
@@ -740,22 +1036,24 @@ function leafletToWorld(latlng) {
     return { x: latlng.lng, y: latlng.lat };
 }
 
-function updateStatusDot(elementId, status) {
-    const dot = document.getElementById(elementId);
-    dot.className = 'status-dot ' + status;
-}
-
 function updateServiceStatus(serviceName, status) {
     // Find the service item in the grid
     const serviceItems = document.querySelectorAll('.service-item');
     serviceItems.forEach(item => {
         if (item.textContent.includes(serviceName)) {
             const dot = item.querySelector('.service-status-dot');
-            // status can be 'active', 'inactive', or 'checking'
+            // status: 'default', 'checking', 'active', 'inactive'
             if (typeof status === 'boolean') {
-                dot.className = 'service-status-dot ' + (status ? 'active' : 'inactive');
+                dot.className = 'service-status-dot ' + (status ? 'active' : 'default');
             } else {
                 dot.className = 'service-status-dot ' + status;
+            }
+
+            // Gray out inactive items
+            if (status === 'default' || status === 'inactive') {
+                item.classList.add('disabled');
+            } else {
+                item.classList.remove('disabled');
             }
         }
     });
@@ -768,9 +1066,16 @@ function updateNodeStatus(nodeName, status) {
         if (item.textContent.includes(nodeName)) {
             const dot = item.querySelector('.service-status-dot');
             if (typeof status === 'boolean') {
-                dot.className = 'service-status-dot ' + (status ? 'active' : 'inactive');
+                dot.className = 'service-status-dot ' + (status ? 'active' : 'default');
             } else {
                 dot.className = 'service-status-dot ' + status;
+            }
+
+            // Gray out inactive items
+            if (status === 'default' || status === 'inactive') {
+                item.classList.add('disabled');
+            } else {
+                item.classList.remove('disabled');
             }
         }
     });
@@ -779,7 +1084,11 @@ function updateNodeStatus(nodeName, status) {
 function resetServiceStatus() {
     Object.keys(state.services).forEach(service => {
         state.services[service] = false;
-        updateServiceStatus(service, false);
+        updateServiceStatus(service, 'default');
+    });
+    Object.keys(state.nodes).forEach(node => {
+        state.nodes[node] = false;
+        updateNodeStatus(node, 'default');
     });
 }
 

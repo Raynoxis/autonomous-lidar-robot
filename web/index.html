@@ -59,6 +59,39 @@
             color: var(--text-light);
         }
 
+        .header-status-message {
+            flex: 1;
+            text-align: center;
+            font-size: 1rem;
+            color: var(--text-gray);
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .header-status-message.waiting {
+            color: var(--text-gray);
+            border-color: var(--border-color);
+        }
+
+        .header-status-message.connecting {
+            color: var(--warning-color);
+            border-color: var(--warning-color);
+            animation: pulse 2s infinite;
+        }
+
+        .header-status-message.connected {
+            color: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .header-status-message.error {
+            color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+
         .status-bar {
             display: flex;
             gap: 1rem;
@@ -79,16 +112,21 @@
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            animation: pulse 2s infinite;
         }
 
+        .status-dot.default { background: #6b7280; }
         .status-dot.online { background: var(--success-color); }
-        .status-dot.offline { background: var(--danger-color); animation: none; }
-        .status-dot.warning { background: var(--warning-color); }
+        .status-dot.offline { background: var(--danger-color); }
+        .status-dot.warning { background: var(--warning-color); animation: blink 1s infinite; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
         }
 
         /* Main Container */
@@ -99,6 +137,95 @@
             padding: 1rem;
             flex: 1;
             overflow: hidden;
+        }
+
+        .main-container.status-collapsed {
+            grid-template-columns: 60px 1fr 350px;
+        }
+
+        /* Status Panel Collapsible */
+        .status-panel {
+            background: var(--dark-bg);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .status-panel.collapsed {
+            width: 60px;
+        }
+
+        .status-panel-toggle {
+            padding: 1rem;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+        }
+
+        .status-panel-toggle:hover {
+            background: var(--border-color);
+        }
+
+        .status-panel.collapsed .status-panel-toggle {
+            justify-content: center;
+        }
+
+        .status-panel.collapsed .status-panel-title {
+            display: none;
+        }
+
+        .toggle-icon {
+            font-size: 1.25rem;
+            transition: transform 0.3s ease;
+        }
+
+        .status-panel.collapsed .toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .status-panel-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .status-panel.collapsed .status-panel-content {
+            display: none;
+        }
+
+        .status-panel-collapsed-view {
+            display: none;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            align-items: center;
+        }
+
+        .status-panel.collapsed .status-panel-collapsed-view {
+            display: flex;
+        }
+
+        .status-icon-mini {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: help;
+            position: relative;
+        }
+
+        .status-icon-mini .status-dot {
+            width: 8px;
+            height: 8px;
         }
 
         /* Panels */
@@ -251,7 +378,7 @@
             position: absolute;
             top: 1rem;
             left: 1rem;
-            z-index: 1000;
+            z-index: 400;
             background: rgba(31, 41, 55, 0.95);
             padding: 1rem;
             border-radius: 0.5rem;
@@ -325,9 +452,15 @@
             flex-shrink: 0;
         }
 
+        .service-status-dot.default { background: #6b7280; }
         .service-status-dot.active { background: var(--success-color); }
         .service-status-dot.inactive { background: var(--danger-color); }
-        .service-status-dot.checking { background: var(--warning-color); animation: pulse 1s infinite; }
+        .service-status-dot.checking { background: var(--warning-color); animation: blink 1s infinite; }
+
+        .service-item.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
 
         /* Topics List */
         .topics-list {
@@ -469,28 +602,36 @@
     <!-- Header -->
     <div class="header">
         <div class="header-title">MakersPet Loki - Control Center</div>
-        <div class="status-bar">
-            <div class="status-indicator">
-                <div class="status-dot offline" id="statusROS"></div>
-                <span>ROS Bridge</span>
-            </div>
-            <div class="status-indicator">
-                <div class="status-dot offline" id="statusNav"></div>
-                <span>Navigation</span>
-            </div>
-            <div class="status-indicator">
-                <div class="status-dot offline" id="statusMap"></div>
-                <span>Mapping</span>
-            </div>
+        <div class="header-status-message waiting" id="mainStatusMessage">
+            En attente de la connexion du robot...
         </div>
     </div>
 
     <!-- Main Container -->
-    <div class="main-container">
-        <!-- Left Panel - Connection & Control -->
-        <div class="panel left-panel">
-            <div class="panel-header">Connection & Control</div>
-            <div class="panel-content">
+    <div class="main-container" id="mainContainer">
+        <!-- Left Panel - Status (Collapsible) -->
+        <div class="status-panel" id="statusPanel">
+            <!-- Toggle Header -->
+            <div class="status-panel-toggle" id="statusPanelToggle">
+                <span class="status-panel-title" style="font-weight: bold; font-size: 1.125rem;">Status & Control</span>
+                <span class="toggle-icon">◀</span>
+            </div>
+
+            <!-- Collapsed View (Icons Only) -->
+            <div class="status-panel-collapsed-view">
+                <div class="status-icon-mini" title="ROS Connection">
+                    <div class="status-dot default" id="miniStatusROS"></div>
+                </div>
+                <div class="status-icon-mini" title="Topics">
+                    <div class="status-dot default" id="miniStatusTopics"></div>
+                </div>
+                <div class="status-icon-mini" title="Nodes">
+                    <div class="status-dot default" id="miniStatusNodes"></div>
+                </div>
+            </div>
+
+            <!-- Expanded Content -->
+            <div class="status-panel-content">
                 <!-- Connection -->
                 <div class="connection-form">
                     <div class="input-group">
@@ -502,60 +643,94 @@
                 </div>
 
                 <!-- Topics Status -->
-                <h3 style="margin-bottom: 0.75rem;">Topics Status</h3>
+                <h3 style="margin-bottom: 0.75rem; margin-top: 1.5rem;">Topics Status</h3>
                 <div class="service-grid" id="servicesGrid">
                     <div class="service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span>/cmd_vel</span>
                     </div>
                     <div class="service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span>/map</span>
                     </div>
                     <div class="service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span>/scan</span>
                     </div>
                     <div class="service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span>/tf</span>
                     </div>
                     <div class="service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span>/odom</span>
                     </div>
                     <div class="service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span>/battery_state</span>
                     </div>
                 </div>
 
                 <!-- Nodes Status -->
-                <h3 style="margin-bottom: 0.75rem; margin-top: 1.5rem;">ROS Nodes Status</h3>
+                <h3 style="margin-bottom: 0.75rem; margin-top: 1.5rem;">ROS Nodes</h3>
                 <div style="margin-bottom: 0.5rem; font-size: 0.75rem; color: var(--text-gray);">Container Nodes</div>
                 <div class="service-grid" id="nodesGrid">
                     <div class="node-item service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span style="font-size: 0.75rem;">/slam_toolbox</span>
                     </div>
                     <div class="node-item service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span style="font-size: 0.75rem;">/bt_navigator</span>
                     </div>
                     <div class="node-item service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span style="font-size: 0.75rem;">/controller_server</span>
                     </div>
                     <div class="node-item service-item">
-                        <div class="service-status-dot inactive"></div>
+                        <div class="service-status-dot default"></div>
                         <span style="font-size: 0.75rem;">/planner_server</span>
                     </div>
                 </div>
                 <div style="margin-bottom: 0.5rem; margin-top: 1rem; font-size: 0.75rem; color: var(--text-gray);">Robot Nodes</div>
                 <div class="service-grid">
-                    <div class="node-item service-item" style="grid-column: 1 / -1;">
-                        <div class="service-status-dot inactive"></div>
-                        <span style="font-size: 0.75rem;">/kaiaai_telemetry_node</span>
+                    <div class="node-item service-item">
+                        <div class="service-status-dot default"></div>
+                        <span style="font-size: 0.75rem;">/kaiaai_telemetry</span>
+                    </div>
+                </div>
+                <div style="margin-bottom: 0.5rem; margin-top: 1rem; font-size: 0.75rem; color: var(--text-gray);">Exploration</div>
+                <div class="service-grid">
+                    <div class="node-item service-item">
+                        <div class="service-status-dot default"></div>
+                        <span style="font-size: 0.75rem;">/explore</span>
+                    </div>
+                </div>
+
+                <!-- Telemetry -->
+                <div style="margin-top: 1.5rem;">
+                    <h3 style="margin-bottom: 0.75rem;">Robot Telemetry</h3>
+                    <div style="background: var(--card-bg); padding: 0.75rem; border-radius: 0.5rem; font-size: 0.875rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-gray);">Battery:</span>
+                            <span id="telemetryBattery" style="font-weight: bold; color: var(--success-color);">--</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-gray);">Position X:</span>
+                            <span id="telemetryPosX">0.00 m</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-gray);">Position Y:</span>
+                            <span id="telemetryPosY">0.00 m</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-gray);">Orientation:</span>
+                            <span id="telemetryTheta">0.00°</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-gray);">Scan Range:</span>
+                            <span id="telemetryScan">--</span>
+                        </div>
                     </div>
                 </div>
 
@@ -570,7 +745,7 @@
                     <button class="btn btn-danger" id="btnStop" style="width: 100%; margin-top: 1rem;">EMERGENCY STOP</button>
                 </div>
 
-                <!-- Topics -->
+                <!-- Topics List -->
                 <div style="margin-top: 1.5rem;">
                     <h3 style="margin-bottom: 0.75rem;">Active Topics</h3>
                     <button class="btn btn-secondary" id="btnRefreshTopics" style="width: 100%; margin-bottom: 0.5rem;">Refresh Topics</button>
@@ -612,15 +787,23 @@
         <div class="panel right-panel">
             <div class="panel-header">Navigation Commands</div>
             <div class="panel-content">
-                <!-- Map Commands -->
+                <!-- SLAM Commands -->
                 <div class="command-section">
-                    <div class="command-section-title">Map Control</div>
+                    <div class="command-section-title">SLAM Control</div>
                     <button class="btn btn-primary command-btn" id="btnLoadMap">
-                        <span>Load Map</span>
+                        <span>Start Live Map</span>
                         <span class="icon">🗺️</span>
                     </button>
-                    <button class="btn btn-secondary command-btn" id="btnClearMarkers">
-                        <span>Clear Markers</span>
+                    <button class="btn btn-success command-btn" id="btnSaveMap">
+                        <span>Save Map</span>
+                        <span class="icon">💾</span>
+                    </button>
+                    <button class="btn btn-primary command-btn" id="btnLoadSavedMap">
+                        <span>Load Saved Map</span>
+                        <span class="icon">📂</span>
+                    </button>
+                    <button class="btn btn-danger command-btn" id="btnClearMap">
+                        <span>Clear Map</span>
                         <span class="icon">🗑️</span>
                     </button>
                 </div>
@@ -661,14 +844,14 @@
 
                 <!-- Additional Commands -->
                 <div class="command-section">
-                    <div class="command-section-title">System</div>
+                    <div class="command-section-title">Quick Actions</div>
                     <button class="btn btn-secondary command-btn" id="btnReturnHome">
                         <span>Return to Home</span>
                         <span class="icon">🏠</span>
                     </button>
-                    <button class="btn btn-secondary command-btn" id="btnSaveMap">
-                        <span>Save Map</span>
-                        <span class="icon">💾</span>
+                    <button class="btn btn-secondary command-btn" id="btnClearMarkers">
+                        <span>Clear Markers</span>
+                        <span class="icon">🗑️</span>
                     </button>
                 </div>
 

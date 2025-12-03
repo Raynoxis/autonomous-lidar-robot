@@ -84,7 +84,8 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             cmd = [
                 'bash', '-c',
                 'source /opt/ros/iron/setup.bash && '
-                'source /app/install/setup.bash && '
+                'source /app/ros_ws/install/setup.bash && '
+                'source /app/uros_ws/install/setup.bash && '
                 'ros2 launch explore_lite explore.launch.py'
             ]
 

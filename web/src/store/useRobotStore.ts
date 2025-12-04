@@ -13,6 +13,7 @@ import type {
   OccupancyGrid,
   BatteryState,
   LaserScan,
+  Transform,
 } from '../types';
 
 interface RobotStore {
@@ -217,19 +218,74 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
     // Subscribe to TF for robot position
     if (rosService.tfTopic) {
-      rosService.tfTopic.subscribe((message: TFMessage) => {
-        // Find base_link transform
-        for (const transform of message.transforms) {
-          if (
-            transform.header.frame_id === 'map' &&
-            transform.child_frame_id === 'base_link'
-          ) {
-            const { x, y } = transform.transform.translation;
-            const q = transform.transform.rotation;
-            const theta = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+      // Compose map -> odom -> base_(footprint|link) to always recover robot pose
+      let mapToOdom: Transform | null = null;
+      let odomToBase: Transform | null = null;
 
-            set({ robotPose: { x, y, theta } });
+      const toPose = (translation: Transform['translation'], rotation: Transform['rotation']) => {
+        const theta = Math.atan2(
+          2 * (rotation.w * rotation.z + rotation.x * rotation.y),
+          1 - 2 * (rotation.y * rotation.y + rotation.z * rotation.z)
+        );
+        return { x: translation.x, y: translation.y, theta };
+      };
+
+      const multiplyQuat = (a: Transform['rotation'], b: Transform['rotation']) => ({
+        w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+        x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+        y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+        z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+      });
+
+      const rotateVec = (q: Transform['rotation'], v: Transform['translation']) => {
+        // Rotate vector v by quaternion q (formula avoids extra deps)
+        const u = { x: q.x, y: q.y, z: q.z };
+        const s = q.w;
+        const cross = (a: typeof u, b: typeof u) => ({
+          x: a.y * b.z - a.z * b.y,
+          y: a.z * b.x - a.x * b.z,
+          z: a.x * b.y - a.y * b.x,
+        });
+        const dot = u.x * v.x + u.y * v.y + u.z * v.z;
+        const cx = cross(u, v);
+        return {
+          x: 2 * dot * u.x + (s * s - (u.x * u.x + u.y * u.y + u.z * u.z)) * v.x + 2 * s * cx.x,
+          y: 2 * dot * u.y + (s * s - (u.x * u.x + u.y * u.y + u.z * u.z)) * v.y + 2 * s * cx.y,
+          z: 2 * dot * u.z + (s * s - (u.x * u.x + u.y * u.y + u.z * u.z)) * v.z + 2 * s * cx.z,
+        };
+      };
+
+      rosService.tfTopic.subscribe((message: TFMessage) => {
+        for (const transform of message.transforms) {
+          const parent = transform.header.frame_id;
+          const child = transform.child_frame_id;
+
+          // Direct transform map -> base_link (best case)
+          if (parent === 'map' && child === 'base_link') {
+            const pose = toPose(transform.transform.translation, transform.transform.rotation);
+            set({ robotPose: pose });
+            return;
           }
+
+          if (parent === 'map' && child === 'odom') {
+            mapToOdom = transform.transform;
+          }
+
+          if (parent === 'odom' && (child === 'base_footprint' || child === 'base_link')) {
+            odomToBase = transform.transform;
+          }
+        }
+
+        // Compose map->odom with odom->base if direct transform is absent
+        if (mapToOdom && odomToBase) {
+          const rotated = rotateVec(mapToOdom.rotation, odomToBase.translation);
+          const composedTranslation = {
+            x: mapToOdom.translation.x + rotated.x,
+            y: mapToOdom.translation.y + rotated.y,
+            z: mapToOdom.translation.z + rotated.z,
+          };
+          const composedRotation = multiplyQuat(mapToOdom.rotation, odomToBase.rotation);
+          set({ robotPose: toPose(composedTranslation, composedRotation) });
         }
       });
     }

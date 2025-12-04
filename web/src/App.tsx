@@ -15,17 +15,9 @@ function App() {
     connect,
     disconnect,
     commandLog,
-    robotPose,
-    batteryVoltage,
-    scanRange,
     emergencyStop,
     startExploration,
     stopExploration,
-    saveMap,
-    loadMap,
-    clearMap,
-    cancelNavigation,
-    setHomePosition,
   } = useRobotStore();
 
   const buttonStates = useButtonStates();
@@ -93,41 +85,6 @@ function App() {
             {/* Virtual Joystick */}
             <VirtualJoystick />
 
-            <hr className="border-dark-border" />
-
-            {/* Robot Telemetry */}
-            <div>
-              <h3 className="font-bold mb-2 text-text-gray text-sm">Robot Telemetry</h3>
-              <div className="bg-dark-card rounded-lg p-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-text-gray">Position X:</span>
-                  <span>{robotPose.x.toFixed(2)} m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-gray">Position Y:</span>
-                  <span>{robotPose.y.toFixed(2)} m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-gray">Orientation:</span>
-                  <span>{((robotPose.theta * 180) / Math.PI).toFixed(1)}°</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-gray">Battery:</span>
-                  <span className={batteryVoltage && batteryVoltage > 11.5 ? 'text-success' : 'text-warning'}>
-                    {batteryVoltage ? `${batteryVoltage.toFixed(2)}V` : '--'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-text-gray">Scan Range:</span>
-                  <span>
-                    {scanRange ? `${scanRange.min.toFixed(2)}m - ${scanRange.max.toFixed(2)}m` : '--'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <hr className="border-dark-border" />
-
             {/* Dynamic System Status */}
             <SystemStatus />
           </div>
@@ -143,77 +100,6 @@ function App() {
         {/* Right Panel - Commands */}
         <Panel title="Navigation Commands" className="overflow-hidden">
           <div className="space-y-4">
-            {/* SLAM Commands */}
-            <div>
-              <h3 className="font-bold mb-2 text-text-gray text-sm uppercase">SLAM Control</h3>
-              <div className="space-y-2">
-                <Button
-                  variant="success"
-                  fullWidth
-                  size="sm"
-                  disabled={!buttonStates.canSaveMap}
-                  onClick={() => {
-                    const name = prompt('Map name:', 'my_map');
-                    if (name) saveMap(name);
-                  }}
-                >
-                  💾 Save Map
-                </Button>
-                <Button
-                  variant="primary"
-                  fullWidth
-                  size="sm"
-                  disabled={!buttonStates.canLoadMap}
-                  onClick={() => {
-                    const name = prompt('Map name to load:', 'my_map');
-                    if (name) loadMap(name);
-                  }}
-                >
-                  📂 Load Map
-                </Button>
-                <Button
-                  variant="danger"
-                  fullWidth
-                  size="sm"
-                  disabled={!buttonStates.canClearMap}
-                  onClick={() => {
-                    if (confirm('Clear current map?')) clearMap();
-                  }}
-                >
-                  🗑️ Clear Map
-                </Button>
-              </div>
-            </div>
-
-            <hr className="border-dark-border" />
-
-            {/* Navigation Commands */}
-            <div>
-              <h3 className="font-bold mb-2 text-text-gray text-sm uppercase">Navigation</h3>
-              <div className="space-y-2">
-                <Button
-                  variant="danger"
-                  fullWidth
-                  size="sm"
-                  disabled={!buttonStates.canCancelGoal}
-                  onClick={cancelNavigation}
-                >
-                  ❌ Cancel Goal
-                </Button>
-                <Button
-                  variant="secondary"
-                  fullWidth
-                  size="sm"
-                  disabled={!buttonStates.canSetHome}
-                  onClick={setHomePosition}
-                >
-                  🏠 Set Home
-                </Button>
-              </div>
-            </div>
-
-            <hr className="border-dark-border" />
-
             {/* Exploration */}
             <div>
               <h3 className="font-bold mb-2 text-text-gray text-sm uppercase">Exploration</h3>

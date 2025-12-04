@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useRobotStore } from '../../store';
+import { useButtonStates } from '../../hooks';
 
 export const MapViewer = () => {
   const mapRef = useRef<L.Map | null>(null);
@@ -19,10 +20,17 @@ export const MapViewer = () => {
     mapBounds,
     robotPose,
     batteryVoltage,
+    scanRange,
     sendNavigationGoal,
     setInitialPose,
+    cancelNavigation,
+    setHomePosition,
+    saveMap,
+    loadMap,
+    clearMap,
     addLog,
   } = useRobotStore();
+  const buttonStates = useButtonStates();
 
   // Initialize map
   useEffect(() => {
@@ -240,12 +248,26 @@ export const MapViewer = () => {
     }
   };
 
+  const handleSaveMap = () => {
+    const name = prompt('Nom de la carte :', 'my_map');
+    if (name) saveMap(name);
+  };
+
+  const handleLoadMap = () => {
+    const name = prompt('Nom de la carte à charger :', 'my_map');
+    if (name) loadMap(name);
+  };
+
+  const handleClearMap = () => {
+    if (confirm('Effacer la carte actuelle ?')) clearMap();
+  };
+
   return (
     <div className="relative h-full w-full">
       <div ref={mapContainerRef} className="h-full w-full bg-dark-card" />
 
       {/* Map Overlay */}
-      <div className="absolute top-4 left-4 z-[400] bg-dark-bg/95 p-4 rounded-lg border border-dark-border max-w-xs pointer-events-none">
+      <div className="absolute bottom-4 left-4 z-[400] bg-dark-bg/95 p-4 rounded-lg border border-dark-border max-w-xs pointer-events-none">
         <div className="pointer-events-auto">
           <div className="font-bold mb-2">Robot Position</div>
           <div className="space-y-1 text-sm">
@@ -267,44 +289,101 @@ export const MapViewer = () => {
                 {batteryVoltage ? `${batteryVoltage.toFixed(2)}V` : '--'}
               </span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-text-gray">Scan range:</span>
+              <span>
+                {scanRange ? `${scanRange.min.toFixed(2)}m - ${scanRange.max.toFixed(2)}m` : '--'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Map Controls */}
-      <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2">
-        <button
-          onClick={() => {
-            setClickMode(clickMode === 'navigation' ? null : 'navigation');
-            addLog(clickMode === 'navigation' ? 'Navigation mode off' : 'Click map to navigate');
-          }}
-          className={`px-4 py-2 rounded-lg font-bold transition-all ${
-            clickMode === 'navigation'
-              ? 'bg-success text-white'
-              : 'bg-dark-bg/95 text-text-light border border-dark-border hover:bg-dark-card'
-          }`}
-        >
-          📍 Navigate
-        </button>
-        <button
-          onClick={() => {
-            setClickMode(clickMode === 'initialpose' ? null : 'initialpose');
-            addLog(clickMode === 'initialpose' ? 'Initial pose mode off' : 'Click map to set initial pose');
-          }}
-          className={`px-4 py-2 rounded-lg font-bold transition-all ${
-            clickMode === 'initialpose'
-              ? 'bg-warning text-white'
-              : 'bg-dark-bg/95 text-text-light border border-dark-border hover:bg-dark-card'
-          }`}
-        >
-          📌 Set Pose
-        </button>
-        <button
-          onClick={handleClearGoal}
-          className="px-4 py-2 rounded-lg font-bold bg-dark-bg/95 text-text-light border border-dark-border hover:bg-dark-card transition-all"
-        >
-          🗑️ Clear Goal
-        </button>
+      <div className="absolute top-4 right-4 z-[400] flex flex-col gap-3 bg-dark-bg/95 p-4 rounded-lg border border-dark-border">
+        <div className="space-y-2">
+          <div className="text-xs uppercase tracking-wide text-text-gray font-bold">Navigation</div>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => {
+                setClickMode(clickMode === 'navigation' ? null : 'navigation');
+                addLog(clickMode === 'navigation' ? 'Navigation mode off' : 'Click map to navigate');
+              }}
+              disabled={!buttonStates.canNavigate}
+              className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                clickMode === 'navigation'
+                  ? 'bg-success text-white'
+                  : 'bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80'
+              } ${!buttonStates.canNavigate ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              📍 Naviguer
+            </button>
+            <button
+              onClick={() => {
+                setClickMode(clickMode === 'initialpose' ? null : 'initialpose');
+                addLog(clickMode === 'initialpose' ? 'Initial pose mode off' : 'Click map to set initial pose');
+              }}
+              disabled={!buttonStates.canSetHome}
+              className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                clickMode === 'initialpose'
+                  ? 'bg-warning text-white'
+                  : 'bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80'
+              } ${!buttonStates.canSetHome ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              📌 Pose initiale
+            </button>
+            <button
+              onClick={() => {
+                cancelNavigation();
+                handleClearGoal();
+              }}
+              disabled={!buttonStates.canCancelGoal}
+              className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ❌ Annuler le goal
+            </button>
+            <button
+              onClick={() => setHomePosition()}
+              disabled={!buttonStates.canSetHome}
+              className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              🏠 Définir Home
+            </button>
+            <button
+              onClick={handleClearGoal}
+              className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all"
+            >
+              🗑️ Effacer le goal
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-xs uppercase tracking-wide text-text-gray font-bold">SLAM</div>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleSaveMap}
+              disabled={!buttonStates.canSaveMap}
+              className="px-4 py-2 rounded-lg font-bold bg-success text-white hover:bg-success/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              💾 Sauver carte
+            </button>
+            <button
+              onClick={handleLoadMap}
+              disabled={!buttonStates.canLoadMap}
+              className="px-4 py-2 rounded-lg font-bold bg-primary text-white hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              📂 Charger carte
+            </button>
+            <button
+              onClick={handleClearMap}
+              disabled={!buttonStates.canClearMap}
+              className="px-4 py-2 rounded-lg font-bold bg-danger text-white hover:bg-danger/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              🗑️ Effacer carte
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Click Mode Indicator */}

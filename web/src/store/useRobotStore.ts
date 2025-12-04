@@ -394,7 +394,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
   // Stop exploration
   stopExploration: async () => {
-    const { addLog } = get();
+    const { addLog, mapData, transitionToState } = get();
     addLog('Stopping exploration...');
 
     const response = await apiService.stopExploration();
@@ -402,6 +402,13 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       addLog('✓ Exploration stopped');
       rosService.cancelNavigation();
       rosService.publishVelocity(0, 0);
+
+      // Transition back to appropriate state
+      if (mapData) {
+        transitionToState('exploration_available');
+      } else {
+        transitionToState('robot_ready');
+      }
     } else {
       addLog(`✗ Failed to stop exploration: ${response.message}`);
     }
@@ -551,11 +558,11 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
         transitionToState('exploration_available');
       }
 
-      // Check exploration state
-      if (nodes['/explore_node']) {
-        if (systemState !== 'exploring') {
-          transitionToState('exploring');
-        }
+      // Check exploration state - only transition TO exploring if we're not already there
+      // Don't force 'exploring' state - let explicit state transitions handle it
+      if (nodes['/explore_node'] && systemState === 'exploration_available') {
+        // Only auto-transition if explore node appears while we're in exploration_available state
+        transitionToState('exploring');
       }
     } else {
       // Robot lost

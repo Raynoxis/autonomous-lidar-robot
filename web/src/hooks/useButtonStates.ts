@@ -50,9 +50,11 @@ export const useButtonStates = () => {
     canCancelGoal: connected && isNav2Ready(systemState),
     canSetHome: connected && isSystemOperational(systemState),
 
-    // Exploration - needs full system
-    canStartExplore: connected && isSystemOperational(systemState),
-    canStopExplore: connected && isNav2Ready(systemState),
+    // Exploration - Start available when NOT exploring, Stop available when exploring
+    canStartExplore:
+      connected &&
+      (systemState === 'exploration_available' || systemState === 'robot_ready'),
+    canStopExplore: connected && systemState === 'exploring',
 
     // Informational flags
     isFullyOperational: connected && isSystemOperational(systemState),

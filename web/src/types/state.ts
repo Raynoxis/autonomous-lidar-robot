@@ -1,20 +1,39 @@
-// System State Machine
+// System State Machine - 10 états finaux
 export const SystemState = {
+  // Démarrage
   INITIAL: 'initial',
   CONNECTING_WS: 'connecting_ws',
   WS_CONNECTED: 'ws_connected',
   CONTAINER_READY: 'container_ready',
   ROBOT_READY: 'robot_ready',
-  EXPLORATION_AVAILABLE: 'exploration_available',
+  // Opérationnel
   EXPLORING: 'exploring',
   NAVIGATING: 'navigating',
+  // Erreurs
   WS_ERROR: 'ws_error',
   CONTAINER_ERROR: 'container_error',
   ROBOT_LOST: 'robot_lost',
-  EXPLORATION_ERROR: 'exploration_error',
 } as const;
 
 export type SystemState = typeof SystemState[keyof typeof SystemState];
+
+// System Status Item pour affichage dynamique
+export interface SystemStatusItem {
+  label: string;
+  status: 'pending' | 'checking' | 'success' | 'error' | 'disabled';
+  detail?: string;
+}
+
+// Status Indicator Colors
+export type StatusColor = 'gray' | 'yellow' | 'green' | 'orange' | 'red';
+
+export interface StateDisplayInfo {
+  color: StatusColor;
+  pulse: boolean;
+  message: string;
+  detail: string;
+  progress: number;
+}
 
 // Robot Pose
 export interface RobotPose {

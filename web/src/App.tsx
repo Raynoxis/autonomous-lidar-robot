@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Button, Panel } from './components/ui';
 import { MapViewer } from './components/map';
 import { VirtualJoystick } from './components/joystick';
+import { SystemStatus } from './components/SystemStatus';
 import { useRobotStore } from './store';
 import { useButtonStates } from './hooks';
 
@@ -17,8 +18,6 @@ function App() {
     robotPose,
     batteryVoltage,
     scanRange,
-    nodes,
-    topics,
     emergencyStop,
     startExploration,
     stopExploration,
@@ -129,63 +128,8 @@ function App() {
 
             <hr className="border-dark-border" />
 
-            {/* System Status */}
-            <div>
-              <h3 className="font-bold mb-2 text-text-gray text-sm">Container Nodes</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {['/slam_toolbox', '/bt_navigator', '/controller_server', '/planner_server'].map((node) => (
-                  <div
-                    key={node}
-                    className="flex items-center gap-2 bg-dark-card rounded px-2 py-1 text-xs"
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        nodes[node] ? 'bg-success' : 'bg-text-gray'
-                      }`}
-                    ></div>
-                    <span className="truncate">{node.replace('/', '')}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-2 text-text-gray text-sm">Robot Nodes</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {['/kaiaai_telemetry_node', '/robot_state_publisher'].map((node) => (
-                  <div
-                    key={node}
-                    className="flex items-center gap-2 bg-dark-card rounded px-2 py-1 text-xs"
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        nodes[node] ? 'bg-success' : 'bg-text-gray'
-                      }`}
-                    ></div>
-                    <span className="truncate">{node.replace('/', '')}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-2 text-text-gray text-sm">Topics</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {['/scan', '/map', '/cmd_vel', '/battery_state'].map((topic) => (
-                  <div
-                    key={topic}
-                    className="flex items-center gap-2 bg-dark-card rounded px-2 py-1 text-xs"
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        topics[topic] ? 'bg-success' : 'bg-text-gray'
-                      }`}
-                    ></div>
-                    <span className="truncate">{topic}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Dynamic System Status */}
+            <SystemStatus />
           </div>
         </Panel>
 

@@ -7,18 +7,16 @@ export const Header: React.FC = () => {
 
   const getStatusMessage = (state: SystemState): string => {
     const messages: Record<SystemState, string> = {
-      initial: 'Système initialisé - Cliquez sur Connect',
-      connecting_ws: 'Connexion au ROS Bridge WebSocket...',
-      ws_connected: 'ROS Bridge OK - Vérification conteneur...',
-      container_ready: 'Conteneur opérationnel - En attente du robot...',
-      robot_ready: 'Robot connecté - Tous systèmes opérationnels',
-      exploration_available: 'Prêt pour exploration autonome',
+      initial: 'Système prêt - Cliquez sur Connect',
+      connecting_ws: 'Connexion au RosBridge WebSocket...',
+      ws_connected: 'RosBridge OK - Vérification Nav2...',
+      container_ready: 'Nav2 opérationnel - En attente du robot...',
+      robot_ready: 'Système opérationnel - Prêt à naviguer',
       exploring: 'Exploration autonome en cours...',
       navigating: 'Navigation vers objectif...',
-      ws_error: 'Erreur ROS Bridge - Vérifiez le serveur',
-      container_error: 'Erreur conteneur - Nodes manquants',
-      robot_lost: 'Robot déconnecté - Vérifiez alimentation',
-      exploration_error: 'Erreur exploration - Node arrêté',
+      ws_error: 'Erreur RosBridge - Connexion perdue',
+      container_error: 'Erreur conteneur - Nodes Nav2 manquants',
+      robot_lost: 'Robot déconnecté - Reconnexion...',
     };
     return messages[state];
   };
@@ -33,20 +31,30 @@ export const Header: React.FC = () => {
     const criticalTopics = ['/scan', '/map', '/cmd_vel'];
     const topicCount = criticalTopics.filter(t => topics[t]).length;
 
-    if (state === 'ws_connected') {
-      return `Détection des nodes Nav2... (${nav2Count}/4 actifs)`;
+    switch (state) {
+      case 'ws_connected':
+        return `Détection Nav2... (${nav2Count}/4 actifs)`;
+
+      case 'container_ready':
+        return `Nav2: ${nav2Count}/4 • Attente robot (${robotCount}/2 nodes)`;
+
+      case 'robot_ready':
+        return `Robot OK • Nav2: ${nav2Count}/4 • Topics: ${topicCount}/3`;
+
+      case 'exploring':
+        const exploreActive = nodes['/explore_node'] ? '✓' : '✗';
+        return `Explore ${exploreActive} • Nav2: ${nav2Count}/4 • Frontières actives`;
+
+      case 'navigating':
+        return `Nav2 actif • Déplacement vers objectif`;
+
+      case 'robot_lost':
+        const scanOK = topics['/scan'] ? '✓' : '✗';
+        return `Scan ${scanOK} • Reconnexion en cours...`;
+
+      default:
+        return '';
     }
-    if (state === 'container_ready') {
-      return `Nav2 opérationnel (${nav2Count}/4) • Attente robot (${robotCount}/2 nodes)`;
-    }
-    if (state === 'robot_ready') {
-      return `Robot OK • Topics: ${topicCount}/3 actifs • Navigation prête`;
-    }
-    if (state === 'exploration_available' || state === 'exploring') {
-      const exploreActive = nodes['/explore_node'] ? '✓' : '✗';
-      return `Explore ${exploreActive} • Nav2: ${nav2Count}/4 • Robot: ${robotCount}/2`;
-    }
-    return '';
   };
 
   const getStatusColor = (state: SystemState): string => {
@@ -63,14 +71,12 @@ export const Header: React.FC = () => {
       connecting_ws: 20,
       ws_connected: 40,
       container_ready: 60,
-      robot_ready: 80,
-      exploration_available: 100,
+      robot_ready: 100,
       exploring: 100,
       navigating: 100,
       ws_error: 0,
       container_error: 40,
       robot_lost: 60,
-      exploration_error: 80,
     };
     return progress[state] || 0;
   };

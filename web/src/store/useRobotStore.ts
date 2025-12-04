@@ -394,21 +394,34 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
   // Stop exploration
   stopExploration: async () => {
-    const { addLog, mapData, transitionToState } = get();
+    const { addLog, systemState, transitionToState, checkNodes } = get();
+
+    if (systemState !== 'exploring') {
+      addLog('⚠ Exploration not active');
+      return;
+    }
+
     addLog('Stopping exploration...');
 
     const response = await apiService.stopExploration();
     if (response.success) {
-      addLog('✓ Exploration stopped');
+      // 1. Annuler navigation en cours
       rosService.cancelNavigation();
+
+      // 2. Arrêt sécurisé robot
       rosService.publishVelocity(0, 0);
 
-      // Transition back to appropriate state
-      if (mapData) {
-        transitionToState('exploration_available');
-      } else {
-        transitionToState('robot_ready');
-      }
+      // 3. Attendre que explore_node disparaisse (2s max)
+      setTimeout(() => {
+        checkNodes();
+        if (!get().nodes['/explore_node']) {
+          addLog('✓ Exploration stopped - explore_node terminated');
+        }
+      }, 2000);
+
+      // 4. Retour immédiat à robot_ready
+      addLog('✓ Exploration stopped');
+      transitionToState('robot_ready');
     } else {
       addLog(`✗ Failed to stop exploration: ${response.message}`);
     }
@@ -511,8 +524,6 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       systemState,
       nodes,
       scanDataReceived,
-      batteryDataReceived,
-      mapData,
       transitionToState,
     } = get();
 
@@ -539,37 +550,28 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       transitionToState('container_ready');
     }
 
-    // Check robot data
-    const robotDataOK = scanDataReceived && batteryDataReceived;
+    // Check robot data - scan suffit, battery optionnelle
+    const robotDataOK = scanDataReceived;
     const robotNodeOK = nodes['/kaiaai_telemetry_node'];
 
     if (robotDataOK && robotNodeOK) {
+      // Transition vers robot_ready si pas déjà en mode opérationnel
       if (
         systemState !== 'robot_ready' &&
-        systemState !== 'exploration_available' &&
         systemState !== 'exploring' &&
         systemState !== 'navigating'
       ) {
         transitionToState('robot_ready');
       }
 
-      // Check if map is loaded for exploration
-      if (mapData && systemState === 'robot_ready') {
-        transitionToState('exploration_available');
-      }
-
-      // Check exploration state - only transition TO exploring if we're not already there
-      // Don't force 'exploring' state - let explicit state transitions handle it
-      if (nodes['/explore_node'] && systemState === 'exploration_available') {
-        // Only auto-transition if explore node appears while we're in exploration_available state
-        transitionToState('exploring');
-      }
+      // Pas d'auto-transition vers exploring - seulement via startExploration()
+      // L'utilisateur contrôle explicitement le démarrage de l'exploration
     } else {
-      // Robot lost
+      // Robot lost - perte des données robot
       if (
         systemState === 'robot_ready' ||
-        systemState === 'exploration_available' ||
-        systemState === 'exploring'
+        systemState === 'exploring' ||
+        systemState === 'navigating'
       ) {
         transitionToState('robot_lost');
       }

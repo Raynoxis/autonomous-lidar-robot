@@ -30,15 +30,33 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
         self._set_headers()
 
     def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        data = json.loads(post_data.decode('utf-8'))
+        # Handle requests with or without body
+        content_length = int(self.headers.get('Content-Length', 0))
 
+        if content_length > 0:
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+            except json.JSONDecodeError:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({'success': False, 'message': 'Invalid JSON'}).encode())
+                return
+        else:
+            data = {}
+
+        # Support both action-based and REST endpoints
+        parsed_path = urlparse(self.path)
         action = data.get('action')
         response = {'success': False, 'message': 'Unknown action'}
 
         try:
-            if action == 'start_explore':
+            # REST-style endpoints
+            if parsed_path.path == '/api/explore/start':
+                response = self.start_explore()
+            elif parsed_path.path == '/api/explore/stop':
+                response = self.stop_explore()
+            # Action-based (legacy support)
+            elif action == 'start_explore':
                 response = self.start_explore()
             elif action == 'stop_explore':
                 response = self.stop_explore()
@@ -48,7 +66,7 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             elif action == 'list_nodes':
                 response = self.list_nodes()
             else:
-                response = {'success': False, 'message': f'Unknown action: {action}'}
+                response = {'success': False, 'message': f'Unknown action or endpoint: {action or parsed_path.path}'}
         except Exception as e:
             response = {'success': False, 'message': str(e)}
 
@@ -75,18 +93,25 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(response).encode())
 
     def start_explore(self):
-        """Start explore_lite launch file"""
+        """Start explore_lite avec paramètres officiels KaiAI"""
         if 'explore' in running_processes and running_processes['explore'].poll() is None:
             return {'success': False, 'message': 'Exploration already running'}
 
         try:
-            # Source ROS2 and launch explore_lite
+            # Source ROS2 and launch explore_lite avec paramètres officiels
             cmd = [
                 'bash', '-c',
                 'source /opt/ros/iron/setup.bash && '
                 'source /app/ros_ws/install/setup.bash && '
-                'source /app/uros_ws/install/setup.bash && '
-                'ros2 launch explore_lite explore.launch.py'
+                'ros2 run explore_lite explore --ros-args '
+                '-p robot_base_frame:=base_link '
+                '-p costmap_topic:=map '
+                '-p costmap_updates_topic:=map_updates '
+                '-p visualize:=true '
+                '-p planner_frequency:=0.15 '
+                '-p progress_timeout:=30.0 '
+                '-p min_frontier_size:=0.75 '
+                '> /app/logs/explore.log 2>&1'
             ]
 
             process = subprocess.Popen(
@@ -101,7 +126,7 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             return {
                 'success': True,
                 'message': 'Exploration started',
-                'pid': process.pid
+                'data': {'pid': process.pid}
             }
         except Exception as e:
             return {'success': False, 'message': f'Failed to start exploration: {str(e)}'}

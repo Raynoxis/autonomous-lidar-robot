@@ -394,7 +394,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
   // Stop exploration
   stopExploration: async () => {
-    const { addLog, systemState, transitionToState, checkNodes } = get();
+    const { addLog, systemState, checkNodes } = get();
 
     if (systemState !== 'exploring') {
       addLog('⚠ Exploration not active');
@@ -411,17 +411,16 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       // 2. Arrêt sécurisé robot
       rosService.publishVelocity(0, 0);
 
-      // 3. Attendre que explore_node disparaisse (2s max)
+      // 3. Attendre que explore_node disparaisse puis transition
       setTimeout(() => {
         checkNodes();
         if (!get().nodes['/explore_node']) {
           addLog('✓ Exploration stopped - explore_node terminated');
         }
+        // 4. Retour à robot_ready après vérification
+        addLog('✓ Exploration stopped');
+        get().transitionToState('robot_ready');
       }, 2000);
-
-      // 4. Retour immédiat à robot_ready
-      addLog('✓ Exploration stopped');
-      transitionToState('robot_ready');
     } else {
       addLog(`✗ Failed to stop exploration: ${response.message}`);
     }

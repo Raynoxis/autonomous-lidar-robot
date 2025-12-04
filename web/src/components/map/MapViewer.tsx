@@ -9,6 +9,8 @@ export const MapViewer = () => {
   const mapLayerRef = useRef<L.ImageOverlay | null>(null);
   const robotMarkerRef = useRef<L.Marker | null>(null);
   const goalMarkerRef = useRef<L.Marker | null>(null);
+  const isFirstMapLoadRef = useRef<boolean>(true);
+  const lastMapUpdateRef = useRef<number>(0);
 
   const [clickMode, setClickMode] = useState<'navigation' | 'initialpose' | null>(null);
 
@@ -105,10 +107,21 @@ export const MapViewer = () => {
     };
   }, [mapData, clickMode, sendNavigationGoal, setInitialPose]);
 
-  // Render map data
+  // Render map data with throttling
   useEffect(() => {
-    if (!mapData || !mapRef.current) return;
+    if (!mapData || !mapRef.current || !mapBounds) return;
 
+    // Throttle map updates to max 1 per second
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastMapUpdateRef.current;
+    const MIN_UPDATE_INTERVAL = 1000; // 1 second
+
+    if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL && !isFirstMapLoadRef.current) {
+      // Skip this update, too soon after last one
+      return;
+    }
+
+    lastMapUpdateRef.current = now;
     const map = mapRef.current;
 
     // Create canvas for map
@@ -117,6 +130,9 @@ export const MapViewer = () => {
     canvas.height = mapData.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Clear canvas first
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw occupancy grid
     const imageData = ctx.createImageData(mapData.width, mapData.height);
@@ -155,8 +171,6 @@ export const MapViewer = () => {
     // Convert canvas to image URL
     const imageUrl = canvas.toDataURL();
 
-    if (!mapBounds) return;
-
     // Convert to Leaflet coordinates
     const sw = worldToLeaflet(mapBounds.minX, mapBounds.minY);
     const ne = worldToLeaflet(mapBounds.maxX, mapBounds.maxY);
@@ -165,27 +179,36 @@ export const MapViewer = () => {
       [ne.lat, ne.lng],
     ];
 
-    // Remove old layer and add new one
+    // PROPERLY remove old layer before adding new one
     if (mapLayerRef.current) {
-      map.removeLayer(mapLayerRef.current);
+      try {
+        map.removeLayer(mapLayerRef.current);
+        mapLayerRef.current = null;
+      } catch (e) {
+        // Layer might already be removed
+        mapLayerRef.current = null;
+      }
     }
 
+    // Add new layer
     mapLayerRef.current = L.imageOverlay(imageUrl, bounds).addTo(map);
 
-    // Fit bounds only on first map load
-    if (!mapLayerRef.current) {
+    // Fit bounds only on FIRST map load
+    if (isFirstMapLoadRef.current) {
       map.fitBounds(bounds);
+      isFirstMapLoadRef.current = false;
     }
   }, [mapData, mapBounds]);
 
-  // Update robot marker
+  // Update robot marker - responds to robotPose changes in real-time
   useEffect(() => {
-    if (!mapRef.current || !mapData) return;
+    if (!mapRef.current) return;
 
     const map = mapRef.current;
     const latlng = worldToLeaflet(robotPose.x, robotPose.y);
 
-    if (!robotMarkerRef.current) {
+    // Create marker on first render if we have map data
+    if (!robotMarkerRef.current && mapData) {
       const robotIcon = L.divIcon({
         className: 'robot-marker',
         html: '<div style="background: #2563eb; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white;"></div>',
@@ -194,7 +217,9 @@ export const MapViewer = () => {
       });
 
       robotMarkerRef.current = L.marker(latlng, { icon: robotIcon }).addTo(map);
-    } else {
+    }
+    // Update marker position in real-time
+    else if (robotMarkerRef.current) {
       robotMarkerRef.current.setLatLng(latlng);
     }
   }, [robotPose, mapData]);

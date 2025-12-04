@@ -55,34 +55,65 @@ wait_for_robot() {
 activate_nav2() {
     echo ""
     echo "Activating Nav2 stack..."
-    sleep 5  # Attendre que tous les nodes soient prêts
-    
-    # Vérifier que les lifecycle managers sont prêts
-    local slam_active=$(ros2 lifecycle list 2>/dev/null | grep lifecycle_manager_slam || echo "")
-    local nav_active=$(ros2 lifecycle list 2>/dev/null | grep lifecycle_manager_navigation || echo "")
-    
-    if [ -n "$slam_active" ] && [ -n "$nav_active" ]; then
-        echo "✓ Lifecycle managers detected"
-        
-        # Les managers activent automatiquement leurs nodes
-        # Attendons juste qu'ils finissent
-        local max_wait=30
-        local count=0
-        while [ $count -lt $max_wait ]; do
-            local planner_state=$(ros2 lifecycle get /planner_server 2>/dev/null | head -1 || echo "unknown")
-            if echo "$planner_state" | grep -q "active"; then
-                echo "✓ Nav2 fully activated!"
-                return 0
+    sleep 10  # Attendre que tous les nodes soient prêts
+
+    # Vérifier que les lifecycle nodes Nav2 existent
+    echo "  Checking for Nav2 nodes..."
+    local max_wait=30
+    local count=0
+    while [ $count -lt $max_wait ]; do
+        local node_count=$(ros2 node list 2>/dev/null | grep -E "(bt_navigator|controller_server|planner_server)" | wc -l)
+        if [ "$node_count" -ge 3 ]; then
+            echo "✓ Nav2 nodes detected"
+            break
+        fi
+        sleep 2
+        count=$((count + 2))
+        if [ $((count % 10)) -eq 0 ]; then
+            echo "  Waiting for Nav2 nodes... (${count}s)"
+        fi
+    done
+
+    if [ "$node_count" -lt 3 ]; then
+        echo "⚠ Nav2 nodes not found - skipping activation"
+        return 1
+    fi
+
+    # Vérifier l'état actuel de bt_navigator
+    local nav_state=$(ros2 lifecycle get /bt_navigator 2>/dev/null | head -1 || echo "unknown")
+    echo "  Current bt_navigator state: $nav_state"
+
+    if echo "$nav_state" | grep -q "active"; then
+        echo "✓ Nav2 already active!"
+        return 0
+    fi
+
+    # Activer tous les lifecycle nodes Nav2
+    echo "  Activating lifecycle nodes..."
+    local nodes=("/bt_navigator" "/controller_server" "/planner_server" "/smoother_server" "/waypoint_follower" "/velocity_smoother")
+
+    for node in "${nodes[@]}"; do
+        # Vérifier si le node existe
+        if ros2 node list 2>/dev/null | grep -q "^${node}$"; then
+            echo "    Activating ${node}..."
+            ros2 lifecycle set ${node} activate 2>/dev/null
+            if [ $? -eq 0 ]; then
+                echo "    ✓ ${node} activated"
+            else
+                echo "    ⚠ ${node} activation failed (may already be active)"
             fi
-            sleep 2
-            count=$((count + 2))
-            if [ $((count % 10)) -eq 0 ]; then
-                echo "  Waiting for Nav2 activation... (${count}s)"
-            fi
-        done
-        echo "⚠ Nav2 activation timeout (may activate later)"
+        fi
+    done
+
+    # Vérifier que l'activation a réussi
+    sleep 2
+    nav_state=$(ros2 lifecycle get /bt_navigator 2>/dev/null | head -1 || echo "unknown")
+    if echo "$nav_state" | grep -q "active"; then
+        echo "✓ Nav2 fully activated!"
+        return 0
     else
-        echo "⚠ Lifecycle managers not found"
+        echo "⚠ Nav2 activation incomplete (state: $nav_state)"
+        return 1
     fi
 }
 

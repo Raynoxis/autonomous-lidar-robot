@@ -4,6 +4,7 @@ import { Button, Panel } from './components/ui';
 import { MapViewer } from './components/map';
 import { VirtualJoystick } from './components/joystick';
 import { useRobotStore } from './store';
+import { useButtonStates } from './hooks';
 
 function App() {
   const {
@@ -27,6 +28,8 @@ function App() {
     cancelNavigation,
     setHomePosition,
   } = useRobotStore();
+
+  const buttonStates = useButtonStates();
 
   useEffect(() => {
     // Cleanup on unmount
@@ -61,7 +64,7 @@ function App() {
               <Button
                 variant="success"
                 fullWidth
-                disabled={connected}
+                disabled={!buttonStates.canConnect}
                 onClick={connect}
               >
                 Connect
@@ -69,7 +72,7 @@ function App() {
               <Button
                 variant="danger"
                 fullWidth
-                disabled={!connected}
+                disabled={!buttonStates.canDisconnect}
                 onClick={disconnect}
               >
                 Disconnect
@@ -80,7 +83,7 @@ function App() {
             <Button
               variant="danger"
               fullWidth
-              disabled={!connected}
+              disabled={!buttonStates.canEmergencyStop}
               onClick={emergencyStop}
             >
               ⚠ EMERGENCY STOP
@@ -204,7 +207,7 @@ function App() {
                   variant="success"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canSaveMap}
                   onClick={() => {
                     const name = prompt('Map name:', 'my_map');
                     if (name) saveMap(name);
@@ -216,7 +219,7 @@ function App() {
                   variant="primary"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canLoadMap}
                   onClick={() => {
                     const name = prompt('Map name to load:', 'my_map');
                     if (name) loadMap(name);
@@ -228,7 +231,7 @@ function App() {
                   variant="danger"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canClearMap}
                   onClick={() => {
                     if (confirm('Clear current map?')) clearMap();
                   }}
@@ -248,7 +251,7 @@ function App() {
                   variant="danger"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canCancelGoal}
                   onClick={cancelNavigation}
                 >
                   ❌ Cancel Goal
@@ -257,7 +260,7 @@ function App() {
                   variant="secondary"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canSetHome}
                   onClick={setHomePosition}
                 >
                   🏠 Set Home
@@ -275,7 +278,7 @@ function App() {
                   variant="primary"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canStartExplore}
                   onClick={startExploration}
                 >
                   🔍 Start Exploration
@@ -284,7 +287,7 @@ function App() {
                   variant="danger"
                   fullWidth
                   size="sm"
-                  disabled={!connected}
+                  disabled={!buttonStates.canStopExplore}
                   onClick={stopExploration}
                 >
                   ⏹️ Stop Exploration

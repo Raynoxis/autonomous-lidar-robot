@@ -265,7 +265,7 @@ export const MapViewer = () => {
 
   return (
     <div className="relative h-full w-full">
-      <div ref={mapContainerRef} className="h-full w-full bg-dark-card" />
+      <div ref={mapContainerRef} className="h-full w-full bg-dark-card min-h-[320px] md:min-h-0" />
 
       {/* Map Overlay */}
       <div className="absolute bottom-4 left-4 z-[400] bg-dark-bg/95 p-4 rounded-lg border border-dark-border max-w-xs pointer-events-none">

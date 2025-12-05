@@ -14,8 +14,6 @@ services:
       - ./maps:/app/maps:Z
       - ./logs:/app/logs:Z
       - ./config:/app/config:Z
-      - ./web:/app/web:Z
-      - ./launch:/app/launch:Z
     
     environment:
       - ROS_DOMAIN_ID=0

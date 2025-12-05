@@ -59,6 +59,20 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, count, c
   );
 };
 
+const STATE_LABELS: Record<string, string> = {
+  initial: 'Initial',
+  connecting_ws: 'Connexion WS',
+  ws_connected: 'WS connecté',
+  container_ready: 'Container prêt',
+  robot_ready: 'Robot prêt',
+  navigating: 'Navigation',
+  exploring: 'Exploration',
+  robot_lost: 'Robot perdu',
+  ws_error: 'Erreur WS',
+  container_error: 'Erreur container',
+  nav_error: 'Erreur Nav',
+};
+
 export const SystemStatus: React.FC = () => {
   const { systemState, nodes, topics, scanDataReceived, connected } = useRobotStore();
 
@@ -164,6 +178,27 @@ export const SystemStatus: React.FC = () => {
   return (
     <Panel title="État Système" className="overflow-hidden">
       <div className="space-y-3">
+        {/* System state summary */}
+        <div className="flex items-center justify-between bg-dark-card border border-dark-border rounded-lg px-3 py-2">
+          <div>
+            <div className="text-xs uppercase text-text-gray">État actuel</div>
+            <div className="text-sm font-semibold text-text-light">
+              {STATE_LABELS[systemState] || systemState}
+            </div>
+          </div>
+          <div
+            className={`px-2 py-1 rounded text-xs font-bold ${
+              systemState.includes('error') || systemState === 'robot_lost'
+                ? 'bg-danger/80 text-white'
+                : systemState === 'exploring' || systemState === 'navigating'
+                ? 'bg-success/80 text-white'
+                : 'bg-dark-darker text-text-light'
+            }`}
+          >
+            {systemState}
+          </div>
+        </div>
+
         {/* Core System Components */}
         <div className="space-y-1">
           <h3 className="text-xs font-bold text-text-gray uppercase mb-2">

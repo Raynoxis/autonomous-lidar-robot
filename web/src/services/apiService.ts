@@ -146,6 +146,20 @@ export class APIService {
   }
 
   /**
+   * Load map on the server
+   */
+  async loadMap(mapName: string): Promise<APIResponse> {
+    return this.post('load_map', { map_name: mapName });
+  }
+
+  /**
+   * Clear map (slam_toolbox)
+   */
+  async clearMap(): Promise<APIResponse> {
+    return this.post('clear_map');
+  }
+
+  /**
    * Set base URL
    */
   setBaseUrl(url: string): void {

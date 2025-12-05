@@ -65,6 +65,11 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             elif parsed_path.path == '/api/map/save':
                 map_name = data.get('map_name') or 'map'
                 response = self.save_map(map_name)
+            elif parsed_path.path == '/api/map/load':
+                map_name = data.get('map_name') or 'map'
+                response = self.load_map(map_name)
+            elif parsed_path.path == '/api/map/clear':
+                response = self.clear_map()
             # Action-based (legacy support)
             elif action == 'start_explore':
                 response = self.start_explore()
@@ -77,6 +82,11 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             elif action == 'save_map':
                 map_name = data.get('map_name') or 'map'
                 response = self.save_map(map_name)
+            elif action == 'load_map':
+                map_name = data.get('map_name') or 'map'
+                response = self.load_map(map_name)
+            elif action == 'clear_map':
+                response = self.clear_map()
             elif action == 'check_process':
                 process_name = data.get('process_name')
                 response = self.check_process(process_name)
@@ -272,6 +282,42 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             return {'success': False, 'message': proc.stderr or proc.stdout}
         except Exception as e:
             return {'success': False, 'message': f'Failed to save map: {e}'}
+
+    def load_map(self, map_name: str):
+        """Load map using nav2 map_server load_map service"""
+        try:
+            filename = map_name if map_name.endswith('.yaml') else f"{map_name}.yaml"
+            full_path = f"/app/maps/{filename}"
+            cmd = [
+                'bash', '-c',
+                'source /opt/ros/iron/setup.bash && '
+                'source /app/ros_ws/install/setup.bash && '
+                f"ros2 service call /map_server/load_map nav2_msgs/srv/LoadMap '{{map_url: \"{full_path}\"}}' "
+                "> /app/logs/map_load.log 2>&1"
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if proc.returncode == 0:
+                return {'success': True, 'message': f'Map loaded from {full_path}'}
+            return {'success': False, 'message': proc.stderr or proc.stdout}
+        except Exception as e:
+            return {'success': False, 'message': f'Failed to load map: {e}'}
+
+    def clear_map(self):
+        """Clear current map changes in SLAM Toolbox"""
+        try:
+            cmd = [
+                'bash', '-c',
+                'source /opt/ros/iron/setup.bash && '
+                'source /app/ros_ws/install/setup.bash && '
+                "ros2 service call /slam_toolbox/clear_changes slam_toolbox/srv/Clear '{}' "
+                "> /app/logs/map_clear.log 2>&1"
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if proc.returncode == 0:
+                return {'success': True, 'message': 'Map cleared'}
+            return {'success': False, 'message': proc.stderr or proc.stdout}
+        except Exception as e:
+            return {'success': False, 'message': f'Failed to clear map: {e}'}
 
     def log_message(self, format, *args):
         """Custom log format"""

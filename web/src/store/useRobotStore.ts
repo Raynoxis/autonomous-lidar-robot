@@ -411,11 +411,11 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
   // Load map
   loadMap: (mapName: string) => {
     const { addLog } = get();
-    rosService.loadMap(mapName, (success) => {
-      if (success) {
-        addLog(`✓ Map loaded: ${mapName}`);
+    apiService.loadMap(mapName).then((response) => {
+      if (response.success) {
+        addLog(`✓ Carte chargée: ${mapName}`);
       } else {
-        addLog(`✗ Failed to load map: ${mapName}`);
+        addLog(`✗ Échec chargement carte: ${response.message || mapName}`);
       }
     });
   },
@@ -423,12 +423,12 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
   // Clear map
   clearMap: () => {
     const { addLog } = get();
-    rosService.clearMap((success) => {
-      if (success) {
-        addLog('✓ Map cleared');
+    apiService.clearMap().then((response) => {
+      if (response.success) {
+        addLog('✓ Carte effacée');
         set({ mapData: null, mapBounds: null });
       } else {
-        addLog('✗ Failed to clear map');
+        addLog(`✗ Échec effacement carte: ${response.message || ''}`);
       }
     });
   },

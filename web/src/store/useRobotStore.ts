@@ -14,6 +14,10 @@ import type {
   BatteryState,
   LaserScan,
   Transform,
+  Path,
+  OccupancyGridUpdate,
+  PoseStamped,
+  MarkerArray,
 } from '../types';
 
 interface RobotStore {
@@ -27,6 +31,11 @@ interface RobotStore {
   homePosition: RobotPose | null;
   batteryVoltage: number | null;
   scanRange: { min: number; max: number } | null;
+  scanPoints: { x: number; y: number }[];
+  poseTrail: { x: number; y: number }[];
+  planPath: { x: number; y: number }[];
+  goalPose: { x: number; y: number } | null;
+  frontiers: { x: number; y: number }[];
 
   // Map data
   mapData: MapData | null;
@@ -96,6 +105,11 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
   homePosition: null,
   batteryVoltage: null,
   scanRange: null,
+  scanPoints: [],
+  poseTrail: [],
+  planPath: [],
+  goalPose: null,
+  frontiers: [],
 
   mapData: null,
   mapBounds: null,
@@ -270,7 +284,10 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
           // Direct transform map -> base_link (best case)
           if (parent === 'map' && child === 'base_link') {
             const pose = toPose(transform.transform.translation, transform.transform.rotation);
-            set({ robotPose: pose });
+            set((state) => ({
+              robotPose: pose,
+              poseTrail: [...state.poseTrail, { x: pose.x, y: pose.y }].slice(-500),
+            }));
             return;
           }
 
@@ -292,7 +309,11 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
             z: mapToOdom.translation.z + rotated.z,
           };
           const composedRotation = multiplyQuat(mapToOdom.rotation, odomToBase.rotation);
-          set({ robotPose: toPose(composedTranslation, composedRotation) });
+          const pose = toPose(composedTranslation, composedRotation);
+          set((state) => ({
+            robotPose: pose,
+            poseTrail: [...state.poseTrail, { x: pose.x, y: pose.y }].slice(-500),
+          }));
         }
       });
     }
@@ -318,6 +339,19 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
           const max = Math.max(...ranges);
           set({ scanDataReceived: true, scanRange: { min, max } });
         }
+
+        // Convert scan to map-frame XY points using current pose
+        const { robotPose } = get();
+        const pts: { x: number; y: number }[] = [];
+        const { angle_min, angle_increment } = message;
+        message.ranges.forEach((r, idx) => {
+          if (r < message.range_min || r > message.range_max) return;
+          const angle = angle_min + angle_increment * idx + robotPose.theta;
+          const x = robotPose.x + r * Math.cos(angle);
+          const y = robotPose.y + r * Math.sin(angle);
+          pts.push({ x, y });
+        });
+        set({ scanPoints: pts });
       });
     }
 
@@ -358,6 +392,61 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       });
     }
 
+    // Subscribe to incremental map updates
+    if (rosService.mapUpdateTopic) {
+      rosService.mapUpdateTopic.subscribe((update: OccupancyGridUpdate) => {
+        const { mapData } = get();
+        if (!mapData) return;
+        const newData = [...mapData.data];
+        for (let row = 0; row < update.height; row++) {
+          for (let col = 0; col < update.width; col++) {
+            const mapIndex = (update.y + row) * mapData.width + (update.x + col);
+            const updateIndex = row * update.width + col;
+            newData[mapIndex] = update.data[updateIndex];
+          }
+        }
+        set({ mapData: { ...mapData, data: newData } });
+      });
+    }
+
+    // Subscribe to global plan
+    if (rosService.planTopic) {
+      rosService.planTopic.subscribe((path: Path) => {
+        const pts = path.poses.map((p) => ({
+          x: p.pose.position.x,
+          y: p.pose.position.y,
+        }));
+        set({ planPath: pts });
+      });
+    }
+
+    // Subscribe to goal pose
+    if (rosService.goalTopic) {
+      rosService.goalTopic.subscribe((goal: PoseStamped) => {
+        set({
+          goalPose: {
+            x: goal.pose.position.x,
+            y: goal.pose.position.y,
+          },
+        });
+      });
+    }
+
+    // Subscribe to frontiers (MarkerArray)
+    if (rosService.frontierTopic) {
+      rosService.frontierTopic.subscribe((msg: MarkerArray) => {
+        const pts: { x: number; y: number }[] = [];
+        msg.markers.forEach((m) => {
+          if (m.points && m.points.length > 0) {
+            m.points.forEach((pt) => pts.push({ x: pt.x, y: pt.y }));
+          } else if (m.pose?.position) {
+            pts.push({ x: m.pose.position.x, y: m.pose.position.y });
+          }
+        });
+        set({ frontiers: pts });
+      });
+    }
+
     addLog('ROS topics subscribed');
   },
 
@@ -385,6 +474,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     apiService.sendNavigationGoal(x, y, 0).then((response) => {
       if (response.success) {
         addLog(`✓ Goal sent (${x.toFixed(2)}, ${y.toFixed(2)})`);
+        set({ goalPose: { x, y } });
         transitionToState('navigating');
       } else {
         addLog(`✗ Navigation error: ${response.message || 'send goal failed'}`);

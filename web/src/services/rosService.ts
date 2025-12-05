@@ -6,6 +6,10 @@ import type {
   BatteryState,
   LaserScan,
   PoseWithCovarianceStamped,
+  Path,
+  OccupancyGridUpdate,
+  PoseStamped,
+  MarkerArray,
 } from '../types';
 
 export class ROSService {
@@ -18,9 +22,13 @@ export class ROSService {
   // Topics
   public cmdVelTopic: Topic<Twist> | null = null;
   public mapTopic: Topic<OccupancyGrid> | null = null;
+  public mapUpdateTopic: Topic<OccupancyGridUpdate> | null = null;
   public tfTopic: Topic<TFMessage> | null = null;
   public batteryTopic: Topic<BatteryState> | null = null;
   public scanTopic: Topic<LaserScan> | null = null;
+  public planTopic: Topic<Path> | null = null;
+  public goalTopic: Topic<PoseStamped> | null = null;
+  public frontierTopic: Topic<MarkerArray> | null = null;
 
   // Actions
   // Event callbacks
@@ -105,6 +113,13 @@ export class ROSService {
       messageType: 'nav_msgs/OccupancyGrid',
     });
 
+    // Map updates (incremental)
+    this.mapUpdateTopic = new Topic<OccupancyGridUpdate>({
+      ros: this.ros,
+      name: '/map_updates',
+      messageType: 'map_msgs/OccupancyGridUpdate',
+    });
+
     // TF topic
     this.tfTopic = new Topic<TFMessage>({
       ros: this.ros,
@@ -124,6 +139,27 @@ export class ROSService {
       ros: this.ros,
       name: '/scan',
       messageType: 'sensor_msgs/LaserScan',
+    });
+
+    // Global plan (Nav2 Path)
+    this.planTopic = new Topic<Path>({
+      ros: this.ros,
+      name: '/plan',
+      messageType: 'nav_msgs/Path',
+    });
+
+    // Active goal
+    this.goalTopic = new Topic<PoseStamped>({
+      ros: this.ros,
+      name: '/goal_pose',
+      messageType: 'geometry_msgs/PoseStamped',
+    });
+
+    // Frontiers (if explore_lite publishes MarkerArray)
+    this.frontierTopic = new Topic<MarkerArray>({
+      ros: this.ros,
+      name: '/frontiers',
+      messageType: 'visualization_msgs/MarkerArray',
     });
 
     console.log('[ROS] Topics initialized');
@@ -146,9 +182,13 @@ export class ROSService {
     // Unsubscribe from all topics
     this.cmdVelTopic = null;
     this.mapTopic = null;
+    this.mapUpdateTopic = null;
     this.tfTopic = null;
     this.batteryTopic = null;
     this.scanTopic = null;
+    this.planTopic = null;
+    this.goalTopic = null;
+    this.frontierTopic = null;
 
     console.log('[ROS] Disconnected');
   }

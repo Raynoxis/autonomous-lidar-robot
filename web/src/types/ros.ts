@@ -127,6 +127,17 @@ export interface PoseStamped {
   pose: Pose;
 }
 
+// Path
+export interface PoseStampedWithFrame {
+  header: Header;
+  pose: Pose;
+}
+
+export interface Path {
+  header: Header;
+  poses: PoseStampedWithFrame[];
+}
+
 export interface NavigateToPoseGoal {
   pose: PoseStamped;
 }
@@ -152,6 +163,33 @@ export interface ROSNodeInfo {
 export interface ROSTopicInfo {
   name: string;
   type: string;
+}
+
+// Map Updates (for incremental map refresh)
+export interface OccupancyGridUpdate {
+  header: Header;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  data: number[];
+}
+
+// MarkerArray (frontiers or viz markers)
+export interface Marker {
+  header: Header;
+  ns: string;
+  id: number;
+  type: number;
+  action: number;
+  pose: Pose;
+  scale: Vector3;
+  color: { r: number; g: number; b: number; a: number };
+  points: Point[];
+}
+
+export interface MarkerArray {
+  markers: Marker[];
 }
 
 export interface ROSServiceInfo {

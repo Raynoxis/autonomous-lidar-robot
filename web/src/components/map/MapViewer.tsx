@@ -11,10 +11,21 @@ export const MapViewer = () => {
   const mapLayerRef = useRef<L.ImageOverlay | null>(null);
   const robotMarkerRef = useRef<L.Marker | null>(null);
   const goalMarkerRef = useRef<L.Marker | null>(null);
+  const planLayerRef = useRef<L.Polyline | null>(null);
+  const trailLayerRef = useRef<L.Polyline | null>(null);
+  const scanLayerRef = useRef<L.LayerGroup | null>(null);
+  const frontierLayerRef = useRef<L.LayerGroup | null>(null);
   const isFirstMapLoadRef = useRef<boolean>(true);
   const lastMapUpdateRef = useRef<number>(0);
 
   const [clickMode, setClickMode] = useState<'navigation' | 'initialpose' | null>(null);
+  const [overlays, setOverlays] = useState({
+    scan: true,
+    plan: true,
+    trail: true,
+    goal: true,
+    frontiers: true,
+  });
 
   const {
     mapData,
@@ -22,6 +33,11 @@ export const MapViewer = () => {
     robotPose,
     batteryVoltage,
     scanRange,
+    scanPoints,
+    poseTrail,
+    planPath,
+    goalPose,
+    frontiers,
     sendNavigationGoal,
     setInitialPose,
     cancelNavigation,
@@ -267,6 +283,117 @@ export const MapViewer = () => {
     if (confirm('Effacer la carte actuelle ?')) clearMap();
   };
 
+  // Overlay: global plan
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!planLayerRef.current) {
+      planLayerRef.current = L.polyline([], { color: '#38bdf8', weight: 3, opacity: 0.8 }).addTo(map);
+    }
+
+    if (!overlays.plan || planPath.length === 0) {
+      planLayerRef.current.setLatLngs([]);
+      return;
+    }
+
+    const latlngs = planPath.map((p) => worldToLeaflet(p.x, p.y));
+    planLayerRef.current.setLatLngs(latlngs);
+  }, [planPath, overlays.plan]);
+
+  // Overlay: pose trail (history)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!trailLayerRef.current) {
+      trailLayerRef.current = L.polyline([], { color: '#9ca3af', weight: 2, opacity: 0.6 }).addTo(map);
+    }
+
+    if (!overlays.trail || poseTrail.length === 0) {
+      trailLayerRef.current.setLatLngs([]);
+      return;
+    }
+
+    trailLayerRef.current.setLatLngs(poseTrail.map((p) => worldToLeaflet(p.x, p.y)));
+  }, [poseTrail, overlays.trail]);
+
+  // Overlay: scan points
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!scanLayerRef.current) {
+      scanLayerRef.current = L.layerGroup().addTo(map);
+    }
+
+    scanLayerRef.current.clearLayers();
+
+    if (!overlays.scan || scanPoints.length === 0) return;
+
+    const group = scanLayerRef.current;
+    const points = scanPoints.map((p) => worldToLeaflet(p.x, p.y));
+    points.forEach((pt) => {
+      L.circle(pt, {
+        radius: 0.02,
+        color: '#22d3ee',
+        weight: 1,
+        fillOpacity: 0.6,
+      }).addTo(group);
+    });
+  }, [scanPoints, overlays.scan]);
+
+  // Overlay: goal marker
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!goalMarkerRef.current) {
+      const goalIcon = L.divIcon({
+        className: 'goal-marker',
+        html: '<div style="background: #ef4444; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white;"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+      goalMarkerRef.current = L.marker([0, 0], { icon: goalIcon });
+    }
+
+    if (!overlays.goal || !goalPose) {
+      if (goalMarkerRef.current && map.hasLayer(goalMarkerRef.current)) {
+        map.removeLayer(goalMarkerRef.current);
+      }
+      return;
+    }
+
+    const latlng = worldToLeaflet(goalPose.x, goalPose.y);
+    goalMarkerRef.current.setLatLng(latlng);
+    if (!map.hasLayer(goalMarkerRef.current)) {
+      goalMarkerRef.current.addTo(map);
+    }
+  }, [goalPose, overlays.goal]);
+
+  // Overlay: frontiers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!frontierLayerRef.current) {
+      frontierLayerRef.current = L.layerGroup().addTo(map);
+    }
+    frontierLayerRef.current.clearLayers();
+
+    if (!overlays.frontiers || frontiers.length === 0) return;
+    const layer = frontierLayerRef.current;
+    frontiers.forEach((pt) => {
+      L.circle(worldToLeaflet(pt.x, pt.y), {
+        radius: 0.05,
+        color: '#f59e0b',
+        weight: 1,
+        fillOpacity: 0.5,
+      }).addTo(layer);
+    });
+  }, [frontiers, overlays.frontiers]);
+
   const nav2Nodes = ['/bt_navigator', '/controller_server', '/planner_server', '/slam_toolbox'];
   const nav2Count = nav2Nodes.filter((n) => nodes[n]).length;
   const missingNav2 = nav2Nodes.filter((n) => !nodes[n]);
@@ -317,6 +444,35 @@ export const MapViewer = () => {
   return (
     <div className="relative h-full w-full">
       <div ref={mapContainerRef} className="h-full w-full bg-dark-card min-h-[320px] md:min-h-0" />
+
+      {/* Overlay Filters */}
+      <div className="absolute top-4 left-4 z-[400] bg-dark-bg/95 p-3 rounded-lg border border-dark-border text-sm min-w-[180px]">
+        <div className="text-xs uppercase tracking-wide text-text-gray font-semibold mb-2">Filtres</div>
+        <div className="space-y-1.5">
+          {[
+            { key: 'scan', label: 'Scan LiDAR' },
+            { key: 'plan', label: 'Trajectoire planifiée' },
+            { key: 'trail', label: 'Historique trajet' },
+            { key: 'goal', label: 'Goal actif' },
+            { key: 'frontiers', label: 'Frontières exploration' },
+          ].map((item) => (
+            <label key={item.key} className="flex items-center gap-2 text-text-light cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={overlays[item.key as keyof typeof overlays]}
+                onChange={() =>
+                  setOverlays((prev) => ({
+                    ...prev,
+                    [item.key]: !prev[item.key as keyof typeof overlays],
+                  }))
+                }
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="text-xs">{item.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
 
       {/* Map Overlay */}
       <div className="absolute bottom-4 left-4 z-[400] bg-dark-bg/95 p-4 rounded-lg border border-dark-border max-w-xs pointer-events-none">

@@ -521,11 +521,15 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     // Exploration status check: 2s pour détecter fin de process explore
     const exploreStatusInterval = setInterval(() => {
       const { systemState } = get();
+      console.log('[POLL-EXPLORE] State:', systemState);
       if (systemState === 'exploring') {
         apiService.getExplorationStatus().then((res) => {
+          console.log('[POLL-EXPLORE] API Response:', res);
           if (res.success && res.data) {
+            console.log('[POLL-EXPLORE] running:', res.data.running, 'finished:', res.data.finished);
             // Si le process est arrêté ou que le log signale la fin, on force l'arrêt
             if (!res.data.running || res.data.finished) {
+              console.log('[POLL-EXPLORE] Auto-stop triggered!');
               get().addLog('Exploration arrêtée automatiquement');
               set({ exploreNodeSeen: false });
               // Appel stop pour nettoyer côté backend
@@ -540,11 +544,15 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     // Navigation status: poll ros_api for goal completion
     const navStatusInterval = setInterval(() => {
       const { systemState, addLog, cancelNavigation } = get();
+      console.log('[POLL-NAV] State:', systemState);
       if (systemState === 'navigating') {
         apiService.getNavigationStatus().then((res) => {
+          console.log('[POLL-NAV] API Response:', res);
           if (res.success && res.data) {
             const { running, status, finished } = res.data;
+            console.log('[POLL-NAV] running:', running, 'finished:', finished, 'status:', status);
             if (!running && (finished || status)) {
+              console.log('[POLL-NAV] Auto-stop triggered!');
               if (status === 'SUCCEEDED') {
                 addLog('✓ Navigation goal reached');
               } else if (status) {

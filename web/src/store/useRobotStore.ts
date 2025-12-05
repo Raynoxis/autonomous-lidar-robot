@@ -467,10 +467,10 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       setTimeout(() => {
         checkNodes();
         if (!get().nodes['/explore_node']) {
-          addLog('✓ Exploration stopped - explore_node terminated');
+          addLog('✓ Exploration arrêtée (explore_node terminé)');
         }
         // 3. Retour à robot_ready après vérification
-        addLog('✓ Exploration stopped');
+        addLog('✓ Exploration arrêtée');
         get().transitionToState('robot_ready');
       }, 2000);
     } else {
@@ -482,20 +482,20 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
   startMonitoring: () => {
     const { checkTopics, checkNodes, evaluateSystemState } = get();
 
-    // Topics check: 100ms
+    // Topics check: 300ms (moins de charge rosapi)
     const topicsInterval = setInterval(() => {
       if (get().connected) {
         checkTopics();
       }
-    }, 100);
+    }, 300);
 
-    // Nodes check: 500ms (with 2s delay)
+    // Nodes check: 1000ms (with 2s delay) pour réduire les timeouts rosapi
     const nodesInterval = setTimeout(() => {
       const interval = setInterval(() => {
         if (get().connected) {
           checkNodes();
         }
-      }, 500);
+      }, 1000);
 
       set((state) => ({
         monitoringIntervals: { ...state.monitoringIntervals, nodes: interval },

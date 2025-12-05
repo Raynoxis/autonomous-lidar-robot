@@ -5,11 +5,22 @@ import type { SystemState } from '../types';
 export const Header: React.FC = () => {
   const { systemState, nodes, topics } = useRobotStore();
 
+  const nav2Nodes = ['/bt_navigator', '/controller_server', '/planner_server', '/slam_toolbox'];
+  const nav2Count = nav2Nodes.filter(n => nodes[n]).length;
+  const missingNav2 = nav2Nodes.filter(n => !nodes[n]);
+
+  const criticalTopics = ['/scan', '/map', '/cmd_vel'];
+  const topicCount = criticalTopics.filter(t => topics[t]).length;
+  const missingTopics = criticalTopics.filter(t => !topics[t]);
+
   const getStatusMessage = (state: SystemState): string => {
     const messages: Record<SystemState, string> = {
       initial: 'Système prêt - Cliquez sur Connect',
       connecting_ws: 'Connexion au RosBridge WebSocket...',
-      ws_connected: 'RosBridge OK - Vérification Nav2...',
+      ws_connected:
+        nav2Count === 0
+          ? 'RosBridge OK - Allume le robot (Nav2 en attente)'
+          : 'RosBridge OK - Vérification Nav2...',
       container_ready: 'Nav2 opérationnel - En attente du robot...',
       robot_ready: 'Système opérationnel - Prêt à naviguer',
       exploring: 'Exploration autonome en cours...',
@@ -22,24 +33,26 @@ export const Header: React.FC = () => {
   };
 
   const getStatusDetails = (state: SystemState): string => {
-    // Compter les nodes critiques actifs
-    const nav2Nodes = ['/bt_navigator', '/controller_server', '/planner_server', '/slam_toolbox'];
-    const nav2Count = nav2Nodes.filter(n => nodes[n]).length;
     const robotNodes = ['/kaiaai_telemetry_node', '/robot_state_publisher'];
     const robotCount = robotNodes.filter(n => nodes[n]).length;
 
-    const criticalTopics = ['/scan', '/map', '/cmd_vel'];
-    const topicCount = criticalTopics.filter(t => topics[t]).length;
-
     switch (state) {
       case 'ws_connected':
-        return `Détection Nav2... (${nav2Count}/4 actifs)`;
+        return nav2Count === 0
+          ? 'Allume le robot pour lancer Nav2 (0/4 actifs)'
+          : `Détection Nav2... (${nav2Count}/4 actifs)`;
 
       case 'container_ready':
-        return `Nav2: ${nav2Count}/4 • Attente robot (${robotCount}/2 nodes)`;
+        return `Nav2: ${nav2Count}/4${
+          missingNav2.length ? ` (manquants: ${missingNav2.join(', ')})` : ' OK'
+        } • Attente robot (${robotCount}/2 nodes)`;
 
       case 'robot_ready':
-        return `Robot OK • Nav2: ${nav2Count}/4 • Topics: ${topicCount}/3`;
+        return `Robot OK • Nav2 ${nav2Count}/4${
+          missingNav2.length ? ` (manquants: ${missingNav2.join(', ')})` : ''
+        } • Topics ${topicCount}/3${
+          missingTopics.length ? ` (manquants: ${missingTopics.join(', ')})` : ''
+        }`;
 
       case 'exploring':
         const exploreActive = nodes['/explore_node'] ? '✓' : '✗';

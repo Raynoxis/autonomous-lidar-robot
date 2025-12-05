@@ -16,6 +16,8 @@ PORT = 8083
 
 # Store running processes
 running_processes = {}
+EXPLORE_PID_FILE = "/tmp/explore_node.pid"
+EXPLORE_LOG = "/app/logs/explore.log"
 
 class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
     def _set_headers(self, status=200):
@@ -111,6 +113,8 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
                 response = self.get_status()
             elif parsed_path.path == '/processes':
                 response = self.get_processes()
+            elif parsed_path.path == '/explore/status':
+                response = self.explore_status()
             else:
                 response = {'success': False, 'message': f'Unknown path: {parsed_path.path}'}
         except Exception as e:
@@ -149,6 +153,12 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             )
 
             running_processes['explore'] = process
+            # Persist PID pour supervision côté front/API
+            try:
+                with open(EXPLORE_PID_FILE, 'w') as f:
+                    f.write(str(process.pid))
+            except Exception:
+                pass
 
             return {
                 'success': True,
@@ -161,7 +171,8 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
     def stop_explore(self):
         """Stop explore_lite process"""
         if 'explore' not in running_processes:
-            return {'success': False, 'message': 'Exploration not running'}
+            # Déjà arrêté côté process, on renvoie succès pour débloquer l'IHM
+            return {'success': True, 'message': 'Exploration already stopped'}
 
         try:
             process = running_processes['explore']
@@ -171,10 +182,52 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
                 process.wait(timeout=5)
 
             del running_processes['explore']
+            if os.path.exists(EXPLORE_PID_FILE):
+                try:
+                    os.remove(EXPLORE_PID_FILE)
+                except Exception:
+                    pass
 
             return {'success': True, 'message': 'Exploration stopped'}
         except Exception as e:
             return {'success': False, 'message': f'Failed to stop exploration: {str(e)}'}
+
+    def explore_status(self):
+        """Retourne l'état du process explore (PID encore actif) + statut de fin"""
+        running = False
+        pid = None
+        finished = False
+
+        # 1) vérifier le process enregistré
+        if 'explore' in running_processes:
+            proc = running_processes['explore']
+            running = proc.poll() is None
+            pid = proc.pid if running else None
+
+        # 2) fallback: vérifier le fichier PID
+        if not running and os.path.exists(EXPLORE_PID_FILE):
+            try:
+                with open(EXPLORE_PID_FILE, 'r') as f:
+                    pid_candidate = int(f.read().strip())
+                # Vérifier si le PID existe
+                os.kill(pid_candidate, 0)
+                running = True
+                pid = pid_candidate
+            except Exception:
+                running = False
+                pid = None
+
+        # 3) vérifier le log pour détecter la fin même si le process reste vivant
+        if os.path.exists(EXPLORE_LOG):
+            try:
+                with open(EXPLORE_LOG, 'r') as f:
+                    tail = f.read()[-2000:]  # dernier bloc
+                if 'Exploration stopped' in tail or 'All frontiers traversed' in tail or 'No frontiers found' in tail:
+                    finished = True
+            except Exception:
+                finished = False
+
+        return {'success': True, 'running': running, 'pid': pid, 'finished': finished}
 
     def check_process(self, process_name):
         """Check if a process is running"""

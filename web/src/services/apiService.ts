@@ -160,6 +160,13 @@ export class APIService {
   }
 
   /**
+   * Exploration status (process alive)
+   */
+  async getExplorationStatus(): Promise<APIResponse<{ running: boolean; pid?: number; finished?: boolean }>> {
+    return this.get<{ running: boolean; pid?: number; finished?: boolean }>('/explore/status');
+  }
+
+  /**
    * Set base URL
    */
   setBaseUrl(url: string): void {

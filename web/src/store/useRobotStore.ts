@@ -39,6 +39,7 @@ interface RobotStore {
   // Topics and nodes status
   topics: TopicStatus;
   nodes: NodeStatus;
+  exploreNodeSeen: boolean;
 
   // Monitoring intervals
   monitoringIntervals: {
@@ -46,6 +47,7 @@ interface RobotStore {
     nodes: ReturnType<typeof setTimeout> | null;
     hardware: ReturnType<typeof setTimeout> | null;
     state: ReturnType<typeof setTimeout> | null;
+    exploreStatus: ReturnType<typeof setTimeout> | null;
   };
 
   // Command log
@@ -123,12 +125,14 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     '/robot_state_publisher': false,
     '/explore_node': false,
   },
+  exploreNodeSeen: false,
 
   monitoringIntervals: {
     topics: null,
     nodes: null,
     hardware: null,
     state: null,
+    exploreStatus: null,
   },
 
   commandLog: [],
@@ -161,6 +165,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
         nodes: Object.fromEntries(Object.keys(get().nodes).map((k) => [k, false])),
         scanDataReceived: false,
         batteryDataReceived: false,
+        exploreNodeSeen: false,
       });
     } else if (newState === 'ws_connected') {
       get().startMonitoring();
@@ -441,6 +446,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     const response = await apiService.startExploration();
     if (response.success) {
       addLog(`✓ Exploration started (PID: ${response.data?.pid})`);
+      set({ exploreNodeSeen: false });
       transitionToState('exploring');
     } else {
       addLog(`✗ Failed to start exploration: ${response.message}`);
@@ -509,12 +515,32 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       }
     }, 200);
 
+    // Exploration status check: 2s pour détecter fin de process explore
+    const exploreStatusInterval = setInterval(() => {
+      const { systemState } = get();
+      if (systemState === 'exploring') {
+        apiService.getExplorationStatus().then((res) => {
+          if (res.success && res.data) {
+            // Si le process est arrêté ou que le log signale la fin, on force l'arrêt
+            if (!res.data.running || res.data.finished) {
+              get().addLog('Exploration arrêtée automatiquement');
+              set({ exploreNodeSeen: false });
+              // Appel stop pour nettoyer côté backend
+              apiService.stopExploration();
+              get().transitionToState('robot_ready');
+            }
+          }
+        });
+      }
+    }, 2000);
+
     set({
       monitoringIntervals: {
         topics: topicsInterval,
         nodes: nodesInterval as any,
         hardware: null,
         state: stateInterval,
+        exploreStatus: exploreStatusInterval,
       },
     });
 
@@ -529,6 +555,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     if (monitoringIntervals.nodes) clearInterval(monitoringIntervals.nodes);
     if (monitoringIntervals.hardware) clearInterval(monitoringIntervals.hardware);
     if (monitoringIntervals.state) clearInterval(monitoringIntervals.state);
+    if (monitoringIntervals.exploreStatus) clearInterval(monitoringIntervals.exploreStatus);
 
     set({
       monitoringIntervals: {
@@ -536,6 +563,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
         nodes: null,
         hardware: null,
         state: null,
+        exploreStatus: null,
       },
     });
 
@@ -564,7 +592,16 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
         nodeStatus[node] = nodes.includes(node);
       });
 
-      set({ nodes: nodeStatus });
+      // Marquer la présence d'explore_node au moins une fois pour éviter le rollback prématuré
+      const { systemState, transitionToState, addLog, exploreNodeSeen } = get();
+      const nowSeen = exploreNodeSeen || nodeStatus['/explore_node'];
+      set({ nodes: nodeStatus, exploreNodeSeen: nowSeen });
+
+      // Si on était en exploration et que le node a déjà été vu puis disparaît, revenir en prêt
+      if (systemState === 'exploring' && nowSeen && !nodeStatus['/explore_node']) {
+        addLog('Exploration terminée (explore_node arrêté)');
+        transitionToState('robot_ready');
+      }
     });
   },
 

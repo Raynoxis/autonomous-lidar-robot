@@ -539,26 +539,26 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
     // Navigation status: poll ros_api for goal completion
     const navStatusInterval = setInterval(() => {
-      const { systemState, addLog, transitionToState, connected } = get();
-      if (!connected) return;
-
-      apiService.getNavigationStatus().then((res) => {
-        if (res.success && res.data) {
-          const { running, status, finished } = res.data;
-          if (!running && (finished || status)) {
-            if (status === 'SUCCEEDED') {
-              addLog('✓ Navigation goal reached');
-            } else if (status) {
-              addLog(`⚠ Navigation finished: ${status}`);
-            } else {
-              addLog('⚠ Navigation finished (status inconnu)');
+      const { systemState, addLog, transitionToState } = get();
+      if (systemState === 'navigating') {
+        apiService.getNavigationStatus().then((res) => {
+          if (res.success && res.data) {
+            const { running, status, finished } = res.data;
+            if (!running && (finished || status)) {
+              if (status === 'SUCCEEDED') {
+                addLog('✓ Navigation goal reached');
+              } else if (status) {
+                addLog(`⚠ Navigation finished: ${status}`);
+              } else {
+                addLog('⚠ Navigation finished (status inconnu)');
+              }
+              // Stop the goal to cleanly reset Nav2
+              apiService.cancelNavigationGoal();
+              transitionToState('robot_ready');
             }
-            // Stop the goal to cleanly reset Nav2/UI
-            apiService.cancelNavigationGoal();
-            transitionToState('robot_ready');
           }
-        }
-      });
+        });
+      }
     }, 1000);
 
     set({

@@ -102,7 +102,9 @@ activate_nav2() {
     fi
 
     # Vérifier l'état actuel de bt_navigator
-    local nav_state=$(ros2 lifecycle get /bt_navigator 2>/dev/null | head -1 || echo "unknown")
+    local nav_state_raw
+    nav_state_raw=$(timeout 5 ros2 lifecycle get /bt_navigator 2>/dev/null | head -1 || true)
+    local nav_state="${nav_state_raw:-unknown (timeout)}"
     echo "  Current bt_navigator state: $nav_state"
 
     if echo "$nav_state" | grep -q "active"; then
@@ -118,7 +120,7 @@ activate_nav2() {
         # Vérifier si le node existe
         if ros2 node list 2>/dev/null | grep -q "^${node}$"; then
             echo "    Activating ${node}..."
-            ros2 lifecycle set ${node} activate 2>/dev/null
+            timeout 5 ros2 lifecycle set ${node} activate 2>/dev/null
             if [ $? -eq 0 ]; then
                 echo "    ✓ ${node} activated"
             else
@@ -129,7 +131,8 @@ activate_nav2() {
 
     # Vérifier que l'activation a réussi
     sleep 2
-    nav_state=$(ros2 lifecycle get /bt_navigator 2>/dev/null | head -1 || echo "unknown")
+    nav_state_raw=$(timeout 5 ros2 lifecycle get /bt_navigator 2>/dev/null | head -1 || true)
+    nav_state="${nav_state_raw:-unknown (timeout)}"
     if echo "$nav_state" | grep -q "active"; then
         echo "✓ Nav2 fully activated!"
         return 0

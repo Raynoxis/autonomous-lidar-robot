@@ -122,7 +122,7 @@ export const MapViewer = () => {
     // Throttle map updates to max 1 per second
     const now = Date.now();
     const timeSinceLastUpdate = now - lastMapUpdateRef.current;
-    const MIN_UPDATE_INTERVAL = 1000; // 1 second
+    const MIN_UPDATE_INTERVAL = 200; // 0.2s for smoother visual updates
 
     if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL && !isFirstMapLoadRef.current) {
       // Skip this update, too soon after last one

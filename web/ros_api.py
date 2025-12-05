@@ -55,11 +55,28 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
                 response = self.start_explore()
             elif parsed_path.path == '/api/explore/stop':
                 response = self.stop_explore()
+            elif parsed_path.path == '/api/nav/goal':
+                x = float(data.get('x', 0.0))
+                y = float(data.get('y', 0.0))
+                theta = float(data.get('theta', 0.0))
+                response = self.nav_goal(x, y, theta)
+            elif parsed_path.path == '/api/nav/cancel':
+                response = self.nav_cancel()
+            elif parsed_path.path == '/api/map/save':
+                map_name = data.get('map_name') or 'map'
+                response = self.save_map(map_name)
             # Action-based (legacy support)
             elif action == 'start_explore':
                 response = self.start_explore()
             elif action == 'stop_explore':
                 response = self.stop_explore()
+            elif action == 'nav_goal':
+                response = self.nav_goal(float(data.get('x', 0.0)), float(data.get('y', 0.0)), float(data.get('theta', 0.0)))
+            elif action == 'nav_cancel':
+                response = self.nav_cancel()
+            elif action == 'save_map':
+                map_name = data.get('map_name') or 'map'
+                response = self.save_map(map_name)
             elif action == 'check_process':
                 process_name = data.get('process_name')
                 response = self.check_process(process_name)
@@ -191,6 +208,70 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             'success': True,
             'processes': list(running_processes.keys())
         }
+
+    def nav_goal(self, x: float, y: float, theta: float = 0.0):
+        """Send a NavigateToPose goal via CLI (ROS2 action)"""
+        try:
+            # Orientation from yaw
+            import math
+            qz = math.sin(theta / 2.0)
+            qw = math.cos(theta / 2.0)
+            goal_yaml = (
+                f"{{pose: {{ header: {{ frame_id: map }}, pose: "
+                f"{{ position: {{ x: {x}, y: {y}, z: 0.0 }}, "
+                f"orientation: {{ x: 0.0, y: 0.0, z: {qz}, w: {qw} }} }} }} }}"
+            )
+            cmd = [
+                'bash', '-c',
+                'source /opt/ros/iron/setup.bash && '
+                'source /app/ros_ws/install/setup.bash && '
+                f"ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \"{goal_yaml}\" --feedback "
+                "> /app/logs/nav_goal.log 2>&1"
+            ]
+            proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
+            running_processes['nav_goal'] = proc
+            return {'success': True, 'message': 'Goal sent', 'data': {'pid': proc.pid}}
+        except Exception as e:
+            return {'success': False, 'message': f'Failed to send nav goal: {e}'}
+
+    def nav_cancel(self):
+        """Cancel navigate_to_pose action"""
+        try:
+            cmd = [
+                'bash', '-c',
+                'source /opt/ros/iron/setup.bash && '
+                'source /app/ros_ws/install/setup.bash && '
+                'ros2 action cancel /navigate_to_pose > /app/logs/nav_cancel.log 2>&1'
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            # Clean up running nav_goal process if any
+            if 'nav_goal' in running_processes:
+                proc = running_processes['nav_goal']
+                if proc.poll() is None:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                del running_processes['nav_goal']
+            return {'success': True, 'message': result.stdout.strip() or 'Cancel sent'}
+        except Exception as e:
+            return {'success': False, 'message': f'Failed to cancel goal: {e}'}
+
+    def save_map(self, map_name: str):
+        """Save map using nav2 map_saver_cli"""
+        try:
+            # Ensure extension
+            filename = map_name if map_name.endswith('.yaml') else f"{map_name}.yaml"
+            cmd = [
+                'bash', '-c',
+                'source /opt/ros/iron/setup.bash && '
+                'source /app/ros_ws/install/setup.bash && '
+                f"ros2 run nav2_map_server map_saver_cli -f /app/maps/{filename} "
+                "> /app/logs/map_save.log 2>&1"
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if proc.returncode == 0:
+                return {'success': True, 'message': f'Map saved to /app/maps/{filename}'}
+            return {'success': False, 'message': proc.stderr or proc.stdout}
+        except Exception as e:
+            return {'success': False, 'message': f'Failed to save map: {e}'}
 
     def log_message(self, format, *args):
         """Custom log format"""

@@ -22,6 +22,10 @@ export interface NodeListResponse {
   nodes: string[];
 }
 
+export interface NavGoalResponse {
+  pid?: number;
+}
+
 export class APIService {
   private baseUrl: string;
 
@@ -118,6 +122,27 @@ export class APIService {
    */
   async getProcesses(): Promise<APIResponse<{ processes: string[] }>> {
     return this.get<{ processes: string[] }>('/processes');
+  }
+
+  /**
+   * Send a navigation goal (handled server-side to avoid rosbridge action quirks)
+   */
+  async sendNavigationGoal(x: number, y: number, theta: number = 0): Promise<APIResponse<NavGoalResponse>> {
+    return this.post<NavGoalResponse>('nav_goal', { x, y, theta });
+  }
+
+  /**
+   * Cancel navigation goal
+   */
+  async cancelNavigationGoal(): Promise<APIResponse> {
+    return this.post('nav_cancel');
+  }
+
+  /**
+   * Save map on the server
+   */
+  async saveMap(mapName: string): Promise<APIResponse> {
+    return this.post('save_map', { map_name: mapName });
   }
 
   /**

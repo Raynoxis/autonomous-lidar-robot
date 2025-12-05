@@ -1,4 +1,4 @@
-import { Ros, Topic, Service, ActionClient, Goal } from 'roslib';
+import { Ros, Topic, Service } from 'roslib';
 import type {
   Twist,
   TFMessage,
@@ -6,9 +6,6 @@ import type {
   BatteryState,
   LaserScan,
   PoseWithCovarianceStamped,
-  NavigateToPoseGoal,
-  NavigateToPoseFeedback,
-  NavigateToPoseResult,
 } from '../types';
 
 export class ROSService {
@@ -26,8 +23,6 @@ export class ROSService {
   public scanTopic: Topic<LaserScan> | null = null;
 
   // Actions
-  public navAction: ActionClient | null = null;
-
   // Event callbacks
   private onConnectionCallback?: () => void;
   private onErrorCallback?: (error: any) => void;
@@ -131,13 +126,6 @@ export class ROSService {
       messageType: 'sensor_msgs/LaserScan',
     });
 
-    // Navigation action client
-    this.navAction = new ActionClient({
-      ros: this.ros,
-      serverName: '/navigate_to_pose',
-      actionName: 'nav2_msgs/action/NavigateToPose',
-    });
-
     console.log('[ROS] Topics initialized');
   }
 
@@ -161,7 +149,6 @@ export class ROSService {
     this.tfTopic = null;
     this.batteryTopic = null;
     this.scanTopic = null;
-    this.navAction = null;
 
     console.log('[ROS] Disconnected');
   }
@@ -231,60 +218,7 @@ export class ROSService {
   /**
    * Send navigation goal
    */
-  sendNavigationGoal(
-    x: number,
-    y: number,
-    onFeedback?: (feedback: NavigateToPoseFeedback) => void,
-    onResult?: (result: NavigateToPoseResult) => void,
-    onError?: (error: any) => void
-  ): Goal<NavigateToPoseGoal, NavigateToPoseFeedback, NavigateToPoseResult> | null {
-    if (!this.navAction) {
-      console.warn('[ROS] Navigation action client not initialized');
-      return null;
-    }
-
-    const goalMessage: NavigateToPoseGoal = {
-      pose: {
-        header: { frame_id: 'map', stamp: { sec: 0, nanosec: 0 } },
-        pose: {
-          position: { x, y, z: 0 },
-          orientation: { x: 0, y: 0, z: 0, w: 1 },
-        },
-      },
-    };
-
-    const goal = new Goal<NavigateToPoseGoal, NavigateToPoseFeedback, NavigateToPoseResult>({
-      actionClient: this.navAction,
-      goalMessage,
-    });
-
-    if (onFeedback) {
-      goal.on('feedback', onFeedback);
-    }
-
-    if (onResult) {
-      goal.on('result', onResult);
-    }
-
-    if (onError) {
-      goal.on('error', onError);
-    }
-
-    goal.send();
-    console.log(`[ROS] Navigation goal sent to (${x}, ${y})`);
-
-    return goal;
-  }
-
-  /**
-   * Cancel navigation goal
-   */
-  cancelNavigation(): void {
-    if (this.navAction) {
-      this.navAction.cancel();
-      console.log('[ROS] Navigation cancelled');
-    }
-  }
+  // Navigation action via rosbridge is unreliable on ROS2; goal/cancel handled via API server instead.
 
   /**
    * Get list of topics

@@ -373,38 +373,37 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
   // Send navigation goal
   sendNavigationGoal: (x: number, y: number) => {
-    const { addLog } = get();
+    const { addLog, transitionToState } = get();
 
-    rosService.sendNavigationGoal(
-      x,
-      y,
-      undefined,
-      () => {
-        addLog('✓ Navigation completed');
-      },
-      (error) => {
-        addLog(`✗ Navigation error: ${error}`);
+    apiService.sendNavigationGoal(x, y, 0).then((response) => {
+      if (response.success) {
+        addLog(`✓ Goal sent (${x.toFixed(2)}, ${y.toFixed(2)})`);
+        transitionToState('navigating');
+      } else {
+        addLog(`✗ Navigation error: ${response.message || 'send goal failed'}`);
       }
-    );
-
-    addLog(`Navigating to (${x.toFixed(2)}, ${y.toFixed(2)})...`);
-    get().transitionToState('navigating');
+    });
   },
 
   // Cancel navigation
   cancelNavigation: () => {
-    rosService.cancelNavigation();
-    get().addLog('Navigation cancelled');
+    apiService.cancelNavigationGoal().then((response) => {
+      if (response.success) {
+        get().addLog('Navigation cancelled');
+      } else {
+        get().addLog(`✗ Cancel failed: ${response.message || ''}`);
+      }
+    });
   },
 
   // Save map
   saveMap: (mapName: string) => {
     const { addLog } = get();
-    rosService.saveMap(mapName, (success) => {
-      if (success) {
+    apiService.saveMap(mapName).then((response) => {
+      if (response.success) {
         addLog(`✓ Map saved: ${mapName}`);
       } else {
-        addLog(`✗ Failed to save map: ${mapName}`);
+        addLog(`✗ Failed to save map: ${response.message || mapName}`);
       }
     });
   },
@@ -461,19 +460,16 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
     const response = await apiService.stopExploration();
     if (response.success) {
-      // 1. Annuler navigation en cours
-      rosService.cancelNavigation();
-
-      // 2. Arrêt sécurisé robot
+      // 1. Arrêt sécurisé robot
       rosService.publishVelocity(0, 0);
 
-      // 3. Attendre que explore_node disparaisse puis transition
+      // 2. Attendre que explore_node disparaisse puis transition
       setTimeout(() => {
         checkNodes();
         if (!get().nodes['/explore_node']) {
           addLog('✓ Exploration stopped - explore_node terminated');
         }
-        // 4. Retour à robot_ready après vérification
+        // 3. Retour à robot_ready après vérification
         addLog('✓ Exploration stopped');
         get().transitionToState('robot_ready');
       }, 2000);

@@ -230,7 +230,14 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 finished = False
 
-        return {'success': True, 'running': running, 'pid': pid, 'finished': finished}
+        return {
+            'success': True,
+            'data': {
+                'running': running,
+                'pid': pid,
+                'finished': finished
+            }
+        }
 
     def check_process(self, process_name):
         """Check if a process is running"""
@@ -409,10 +416,12 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
 
         return {
             'success': True,
-            'running': running,
-            'pid': pid,
-            'status': status,
-            'finished': finished,
+            'data': {
+                'running': running,
+                'pid': pid,
+                'status': status,
+                'finished': finished,
+            }
         }
 
     def log_message(self, format, *args):

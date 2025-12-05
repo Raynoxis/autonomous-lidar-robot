@@ -357,32 +357,33 @@ export const MapViewer = () => {
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="space-y-2">
-          <div className="text-xs uppercase tracking-wide text-text-gray font-bold">SLAM</div>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={handleSaveMap}
-              disabled={!buttonStates.canSaveMap}
-              className="px-4 py-2 rounded-lg font-bold bg-success text-white hover:bg-success/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              💾 Sauver carte
-            </button>
-            <button
-              onClick={handleLoadMap}
-              disabled={!buttonStates.canLoadMap}
-              className="px-4 py-2 rounded-lg font-bold bg-primary text-white hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              📂 Charger carte
-            </button>
-            <button
-              onClick={handleClearMap}
-              disabled={!buttonStates.canClearMap}
-              className="px-4 py-2 rounded-lg font-bold bg-danger text-white hover:bg-danger/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              🗑️ Effacer carte
-            </button>
-          </div>
+      {/* SLAM Controls */}
+      <div className="absolute bottom-4 right-4 z-[400] bg-dark-bg/95 p-4 rounded-lg border border-dark-border max-w-xs">
+        <div className="text-xs uppercase tracking-wide text-text-gray font-bold mb-2">SLAM</div>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleSaveMap}
+            disabled={!buttonStates.canSaveMap}
+            className="px-4 py-2 rounded-lg font-bold bg-success text-white hover:bg-success/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            💾 Sauver carte
+          </button>
+          <button
+            onClick={handleLoadMap}
+            disabled={!buttonStates.canLoadMap}
+            className="px-4 py-2 rounded-lg font-bold bg-primary text-white hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            📂 Charger carte
+          </button>
+          <button
+            onClick={handleClearMap}
+            disabled={!buttonStates.canClearMap}
+            className="px-4 py-2 rounded-lg font-bold bg-danger text-white hover:bg-danger/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            🗑️ Effacer carte
+          </button>
         </div>
       </div>
 

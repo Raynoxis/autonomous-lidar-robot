@@ -6,6 +6,7 @@ import { VirtualJoystick } from './components/joystick';
 import { SystemStatus } from './components/SystemStatus';
 import { useRobotStore } from './store';
 import { useButtonStates } from './hooks';
+import { YoutubeFooter } from './components/YoutubeFooter';
 
 function App() {
   const {
@@ -146,6 +147,8 @@ function App() {
           </div>
         </Panel>
       </div>
+
+      <YoutubeFooter />
     </div>
   );
 }

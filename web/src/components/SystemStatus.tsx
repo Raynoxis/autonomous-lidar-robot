@@ -167,8 +167,16 @@ export const SystemStatus: React.FC = () => {
   const pendingStates = ['connecting_ws', 'ws_connected', 'container_ready'];
   const isPending = pendingStates.includes(systemState);
 
+  const wsStatus: StatusLevel = connected
+    ? 'ok'
+    : systemState === 'connecting_ws'
+    ? 'warn'
+    : systemState === 'ws_error'
+    ? 'error'
+    : 'na';
+
   const coreStatus = {
-    ws: connected ? 'ok' : isPending ? 'warn' : 'error',
+    ws: wsStatus,
     rosCore:
       connected && Object.values(nodes).some((n) => n)
         ? 'ok'

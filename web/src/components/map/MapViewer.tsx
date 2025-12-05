@@ -393,14 +393,6 @@ export const MapViewer = () => {
         </div>
       )}
 
-      {/* Exploration status banner */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[400]">
-        <div className="bg-dark-bg/95 text-text-light border border-dark-border px-4 py-2 rounded-lg text-sm shadow-lg">
-          {buttonStates.canStopExplore
-            ? 'Exploration en cours'
-            : 'Exploration arrêtée'}
-        </div>
-      </div>
     </div>
   );
 };

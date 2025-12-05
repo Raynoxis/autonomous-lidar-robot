@@ -29,8 +29,11 @@ export interface NavGoalResponse {
 export class APIService {
   private baseUrl: string;
 
-  constructor(baseUrl: string = 'http://192.168.0.10:8083') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    // Default to same-origin /api to leverage serve.py proxy (8082 -> 8083)
+    this.baseUrl =
+      baseUrl ||
+      (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://192.168.0.10:8082/api');
   }
 
   /**

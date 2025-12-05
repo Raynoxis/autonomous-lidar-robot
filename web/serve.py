@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Simple HTTP server for serving the Vite build"""
+"""Simple HTTP server for serving the Vite build + proxy /api -> ros_api (8083)."""
 import http.server
 import socketserver
 import os
+import http.client
+import json
 from pathlib import Path
 
 PORT = 8082
 DIRECTORY = "/app/web/dist"
+API_BACKEND_PORT = 8083
+API_PREFIX = "/api"
 
 class SPAHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -18,7 +22,58 @@ class SPAHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         super().end_headers()
 
+    def _proxy_to_api(self):
+        """Proxy API calls to the backend ros_api server (8083)."""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else None
+
+            # Strip API prefix to target backend path
+            target_path = self.path[len(API_PREFIX):] or '/'
+
+            conn = http.client.HTTPConnection('127.0.0.1', API_BACKEND_PORT, timeout=5)
+            conn.request(self.command, target_path, body=body, headers=dict(self.headers))
+            resp = conn.getresponse()
+            data = resp.read()
+
+            self.send_response(resp.status)
+            for header, value in resp.getheaders():
+                if header.lower() in (
+                    'connection',
+                    'keep-alive',
+                    'proxy-authenticate',
+                    'proxy-authorization',
+                    'te',
+                    'trailers',
+                    'transfer-encoding',
+                    'upgrade',
+                ):
+                    continue
+                self.send_header(header, value)
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            self.send_response(502)
+            self.end_headers()
+            self.wfile.write(json.dumps({"success": False, "message": f"Proxy error: {str(e)}"}).encode())
+
+    def do_OPTIONS(self):
+        if self.path.startswith(API_PREFIX):
+            self._proxy_to_api()
+            return
+        return super().do_OPTIONS()
+
+    def do_POST(self):
+        if self.path.startswith(API_PREFIX):
+            self._proxy_to_api()
+            return
+        return super().do_POST()
+
     def do_GET(self):
+        if self.path.startswith(API_PREFIX):
+            self._proxy_to_api()
+            return
+
         # Serve index.html for all routes (SPA routing)
         path = self.translate_path(self.path)
 

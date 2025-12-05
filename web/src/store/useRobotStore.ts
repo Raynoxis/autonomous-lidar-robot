@@ -552,6 +552,8 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
               } else {
                 addLog('⚠ Navigation finished (status inconnu)');
               }
+              // Stop the goal to cleanly reset Nav2
+              apiService.cancelNavigationGoal();
               transitionToState('robot_ready');
             }
           }

@@ -73,6 +73,21 @@ const STATE_LABELS: Record<string, string> = {
   nav_error: 'Erreur Nav',
 };
 
+type StatusLevel = 'ok' | 'warn' | 'error' | 'na';
+
+const getStatusClass = (level: StatusLevel) => {
+  switch (level) {
+    case 'ok':
+      return 'bg-success text-white';
+    case 'warn':
+      return 'bg-warning text-white animate-pulse';
+    case 'error':
+      return 'bg-danger text-white';
+    default:
+      return 'bg-gray-600 text-white';
+  }
+};
+
 export const SystemStatus: React.FC = () => {
   const { systemState, nodes, topics, scanDataReceived, connected } = useRobotStore();
 
@@ -115,33 +130,6 @@ export const SystemStatus: React.FC = () => {
     prevTopicsRef.current = topics;
   }, [nodes, topics]);
 
-  // Core system components
-  const coreComponents = [
-    {
-      label: 'WebSocket',
-      active: connected,
-    },
-    {
-      label: 'ROS Core',
-      active: connected && Object.values(nodes).some((n) => n),
-    },
-    {
-      label: 'Nav2 Stack',
-      active:
-        nodes['/bt_navigator'] &&
-        nodes['/controller_server'] &&
-        nodes['/planner_server'],
-    },
-    {
-      label: 'SLAM',
-      active: nodes['/slam_toolbox'],
-    },
-    {
-      label: 'Robot Hardware',
-      active: scanDataReceived && nodes['/kaiaai_telemetry_node'],
-    },
-  ];
-
   // Sort nodes/topics: active first, then highlighted, then alphabetically
   const sortItems = <T extends string>(
     items: Record<T, boolean>,
@@ -175,6 +163,46 @@ export const SystemStatus: React.FC = () => {
     total: Object.keys(topics).length,
   };
 
+  // Derive status levels
+  const pendingStates = ['connecting_ws', 'ws_connected', 'container_ready'];
+  const isPending = pendingStates.includes(systemState);
+
+  const coreStatus = {
+    ws: connected ? 'ok' : isPending ? 'warn' : 'error',
+    rosCore:
+      connected && Object.values(nodes).some((n) => n)
+        ? 'ok'
+        : connected && isPending
+        ? 'warn'
+        : connected
+        ? 'error'
+        : 'na',
+    nav2:
+      nodes['/bt_navigator'] && nodes['/controller_server'] && nodes['/planner_server']
+        ? 'ok'
+        : connected && isPending
+        ? 'warn'
+        : connected
+        ? 'error'
+        : 'na',
+    slam:
+      nodes['/slam_toolbox']
+        ? 'ok'
+        : connected && isPending
+        ? 'warn'
+        : connected
+        ? 'error'
+        : 'na',
+    hardware:
+      scanDataReceived && nodes['/kaiaai_telemetry_node']
+        ? 'ok'
+        : connected && isPending
+        ? 'warn'
+        : connected
+        ? 'error'
+        : 'na',
+  } satisfies Record<string, StatusLevel>;
+
   return (
     <Panel title="État Système" className="overflow-hidden">
       <div className="space-y-3">
@@ -204,17 +232,21 @@ export const SystemStatus: React.FC = () => {
           <h3 className="text-xs font-bold text-text-gray uppercase mb-2">
             Composants Centraux
           </h3>
-          {coreComponents.map((component, index) => (
+          {[
+            { label: 'WebSocket', level: coreStatus.ws },
+            { label: 'ROS Core', level: coreStatus.rosCore },
+            { label: 'Nav2 Stack', level: coreStatus.nav2 },
+            { label: 'SLAM', level: coreStatus.slam },
+            { label: 'Robot Hardware', level: coreStatus.hardware },
+          ].map((item, idx) => (
             <div
-              key={index}
+              key={idx}
               className="flex items-center justify-between py-2 px-3 bg-dark-darker rounded-lg"
             >
-              <span className="text-sm font-medium text-text-light">{component.label}</span>
-              <div
-                className={`w-3 h-3 rounded-full transition-colors ${
-                  component.active ? 'bg-success' : 'bg-gray-600'
-                }`}
-              />
+              <span className="text-sm font-medium text-text-light">{item.label}</span>
+              <div className={`px-2 py-1 rounded text-xs font-bold ${getStatusClass(item.level as StatusLevel)}`}>
+                {item.level === 'ok' ? 'OK' : item.level === 'warn' ? '...' : item.level === 'error' ? 'KO' : 'N/A'}
+              </div>
             </div>
           ))}
         </div>

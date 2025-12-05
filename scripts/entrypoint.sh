@@ -152,7 +152,24 @@ ros2 run robot_state_publisher robot_state_publisher \
     > /app/logs/robot_state_publisher.log 2>&1 &
 sleep 2
 
-# 4. Navigation + SLAM + RosBridge (AVANT connexion robot pour être prêt)
+# 4. Attendre le robot
+wait_for_robot
+
+# 5. Attendre la TF odom -> base_footprint pour éviter l'échec du costmap
+echo "Waiting for TF odom -> base_footprint..."
+tf_wait_max=30
+tf_elapsed=0
+while [ $tf_elapsed -lt $tf_wait_max ]; do
+    if timeout 3 bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && ros2 run tf2_ros tf2_echo odom base_footprint 2>/dev/null | head -n 1 | grep -q 'At time'"; then
+        echo "✓ TF odom -> base_footprint available"
+        break
+    fi
+    sleep 2
+    tf_elapsed=$((tf_elapsed + 2))
+    echo "  Waiting TF... (${tf_elapsed}s/${tf_wait_max}s)"
+done
+
+# 6. Navigation + SLAM + RosBridge (après TF prête)
 echo "Starting Nav2 + SLAM + RosBridge..."
 ros2 launch /app/launch/robot_web.launch.py \
     use_sim_time:=false \
@@ -162,10 +179,7 @@ ros2 launch /app/launch/robot_web.launch.py \
 
 sleep 10
 
-# 5. Attendre le robot
-wait_for_robot
-
-# 6. Activer Nav2
+# 7. Activer Nav2
 activate_nav2
 
 echo ""
@@ -182,7 +196,7 @@ echo ""
 echo "Active nodes: $(ros2 node list 2>/dev/null | wc -l)"
 echo ""
 
-# 7. Start ROS2 Control API
+# 8. Start ROS2 Control API
 echo "Starting ROS2 Control API on port 8083..."
 python3 /app/web/ros_api.py > /app/logs/ros_api.log 2>&1 &
 

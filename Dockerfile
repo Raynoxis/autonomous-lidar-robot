@@ -94,9 +94,11 @@ COPY config/ /app/config/
 COPY launch/ /app/launch/
 
 # Frontend buildé (dist + scripts)
+RUN mkdir -p /app/web
 COPY --from=webbuilder /webapp/dist /app/web/dist
 COPY --from=webbuilder /webapp/serve.py /app/web/serve.py
 COPY --from=webbuilder /webapp/ros_api.py /app/web/ros_api.py
+RUN ls -la /app/web && ls -la /app/web/dist
 
 # Répertoires persistants
 RUN mkdir -p /app/maps /app/logs

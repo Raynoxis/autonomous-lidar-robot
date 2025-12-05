@@ -275,12 +275,6 @@ export const SystemStatus: React.FC = () => {
           ))}
         </CollapsibleSection>
 
-        {/* System State Indicator */}
-        <div className="pt-2 border-t border-dark-border">
-          <div className="text-xs text-text-gray text-center">
-            État: <span className="font-mono text-text-light">{systemState}</span>
-          </div>
-        </div>
       </div>
     </Panel>
   );

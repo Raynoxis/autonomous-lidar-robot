@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useRobotStore } from '../../store';
 import { useButtonStates } from '../../hooks';
+import type { SystemState } from '../../types';
 
 export const MapViewer = () => {
   const mapRef = useRef<L.Map | null>(null);
@@ -29,6 +30,9 @@ export const MapViewer = () => {
     loadMap,
     clearMap,
     addLog,
+    systemState,
+    nodes,
+    topics,
   } = useRobotStore();
   const buttonStates = useButtonStates();
 
@@ -263,6 +267,53 @@ export const MapViewer = () => {
     if (confirm('Effacer la carte actuelle ?')) clearMap();
   };
 
+  const nav2Nodes = ['/bt_navigator', '/controller_server', '/planner_server', '/slam_toolbox'];
+  const nav2Count = nav2Nodes.filter((n) => nodes[n]).length;
+  const missingNav2 = nav2Nodes.filter((n) => !nodes[n]);
+  const criticalTopics = ['/scan', '/map', '/cmd_vel'];
+  const topicCount = criticalTopics.filter((t) => topics[t]).length;
+  const missingTopics = criticalTopics.filter((t) => !topics[t]);
+
+  const statusMessage = () => {
+    const messages: Record<SystemState, string> = {
+      initial: 'Système prêt - Connectez-vous',
+      connecting_ws: 'Connexion au RosBridge...',
+      ws_connected: nav2Count === 0 ? 'RosBridge OK - Attente Nav2' : 'RosBridge OK - Vérification Nav2',
+      container_ready: 'Nav2 opérationnel - Attente robot',
+      robot_ready: 'Robot prêt - Navigation OK',
+      exploring: 'Exploration autonome en cours',
+      navigating: 'Navigation vers objectif',
+      ws_error: 'Erreur RosBridge',
+      container_error: 'Erreur Nav2/stack',
+      robot_lost: 'Robot déconnecté',
+    };
+    return messages[systemState] || systemState;
+  };
+
+  const statusDetails = () => {
+    switch (systemState) {
+      case 'robot_ready':
+        return `Nav2 ${nav2Count}/4${missingNav2.length ? ` (manquants: ${missingNav2.join(', ')})` : ''} • Topics ${topicCount}/3${missingTopics.length ? ` (manquants: ${missingTopics.join(', ')})` : ''}`;
+      case 'exploring':
+        return `Explore ${nodes['/explore_node'] ? '✓' : '✗'} • Nav2 ${nav2Count}/4`;
+      case 'navigating':
+        return `Nav2 ${nav2Count}/4 • Commande en cours`;
+      case 'ws_connected':
+        return nav2Count === 0 ? 'Allume le robot pour lancer Nav2' : `Nav2 détecté (${nav2Count}/4)`;
+      case 'container_ready':
+        return `Nav2 ${nav2Count}/4 • En attente des données robot`;
+      default:
+        return '';
+    }
+  };
+
+  const statusClass = () => {
+    if (systemState.includes('error') || systemState === 'robot_lost') return 'border-danger text-danger';
+    if (systemState === 'connecting_ws' || systemState === 'ws_connected' || systemState === 'container_ready')
+      return 'border-warning text-warning';
+    return 'border-success text-success';
+  };
+
   return (
     <div className="relative h-full w-full">
       <div ref={mapContainerRef} className="h-full w-full bg-dark-card min-h-[320px] md:min-h-0" />
@@ -394,6 +445,16 @@ export const MapViewer = () => {
           {clickMode === 'navigation' ? '📍 Click on map to navigate' : '📌 Click on map to set initial pose'}
         </div>
       )}
+
+      {/* Center Status */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[350] pointer-events-none">
+        <div className={`bg-dark-bg/95 px-4 py-2 rounded-lg border ${statusClass()} text-center min-w-[260px]`}>
+          <div className="font-semibold text-text-light">{statusMessage()}</div>
+          {statusDetails() && (
+            <div className="text-xs text-text-gray mt-1">{statusDetails()}</div>
+          )}
+        </div>
+      </div>
 
     </div>
   );

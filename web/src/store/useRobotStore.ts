@@ -539,11 +539,8 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
     // Navigation status: poll ros_api for goal completion
     const navStatusInterval = setInterval(() => {
-      const { systemState, addLog, transitionToState, connected } = get();
-      if (!connected) return;
-
-      // Poll even if déjà "robot_ready" to sortir d'un éventuel blocage UI
-      if (systemState === 'navigating' || systemState === 'robot_ready') {
+      const { systemState, addLog, transitionToState } = get();
+      if (systemState === 'navigating') {
         apiService.getNavigationStatus().then((res) => {
           if (res.success && res.data) {
             const { running, status, finished } = res.data;

@@ -167,6 +167,17 @@ export class APIService {
   }
 
   /**
+   * Navigation goal status (process + log parsing)
+   */
+  async getNavigationStatus(): Promise<
+    APIResponse<{ running: boolean; pid?: number; status?: string; finished?: boolean }>
+  > {
+    return this.get<{ running: boolean; pid?: number; status?: string; finished?: boolean }>(
+      '/nav/status'
+    );
+  }
+
+  /**
    * Set base URL
    */
   setBaseUrl(url: string): void {

@@ -48,6 +48,7 @@ interface RobotStore {
     hardware: ReturnType<typeof setTimeout> | null;
     state: ReturnType<typeof setTimeout> | null;
     exploreStatus: ReturnType<typeof setTimeout> | null;
+    navStatus: ReturnType<typeof setTimeout> | null;
   };
 
   // Command log
@@ -133,6 +134,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     hardware: null,
     state: null,
     exploreStatus: null,
+    navStatus: null,
   },
 
   commandLog: [],
@@ -395,6 +397,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     apiService.cancelNavigationGoal().then((response) => {
       if (response.success) {
         get().addLog('Navigation cancelled');
+        get().transitionToState('robot_ready');
       } else {
         get().addLog(`✗ Cancel failed: ${response.message || ''}`);
       }
@@ -534,6 +537,28 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       }
     }, 2000);
 
+    // Navigation status: poll ros_api for goal completion
+    const navStatusInterval = setInterval(() => {
+      const { systemState, addLog, transitionToState } = get();
+      if (systemState === 'navigating') {
+        apiService.getNavigationStatus().then((res) => {
+          if (res.success && res.data) {
+            const { running, status, finished } = res.data;
+            if (!running && (finished || status)) {
+              if (status === 'SUCCEEDED') {
+                addLog('✓ Navigation goal reached');
+              } else if (status) {
+                addLog(`⚠ Navigation finished: ${status}`);
+              } else {
+                addLog('⚠ Navigation finished (status inconnu)');
+              }
+              transitionToState('robot_ready');
+            }
+          }
+        });
+      }
+    }, 1000);
+
     set({
       monitoringIntervals: {
         topics: topicsInterval,
@@ -541,6 +566,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
         hardware: null,
         state: stateInterval,
         exploreStatus: exploreStatusInterval,
+        navStatus: navStatusInterval,
       },
     });
 
@@ -556,6 +582,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
     if (monitoringIntervals.hardware) clearInterval(monitoringIntervals.hardware);
     if (monitoringIntervals.state) clearInterval(monitoringIntervals.state);
     if (monitoringIntervals.exploreStatus) clearInterval(monitoringIntervals.exploreStatus);
+    if (monitoringIntervals.navStatus) clearInterval(monitoringIntervals.navStatus);
 
     set({
       monitoringIntervals: {
@@ -564,6 +591,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
         hardware: null,
         state: null,
         exploreStatus: null,
+        navStatus: null,
       },
     });
 

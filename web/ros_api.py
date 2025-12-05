@@ -18,6 +18,7 @@ PORT = 8083
 running_processes = {}
 EXPLORE_PID_FILE = "/tmp/explore_node.pid"
 EXPLORE_LOG = "/app/logs/explore.log"
+NAV_GOAL_LOG = "/app/logs/nav_goal.log"
 
 class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
     def _set_headers(self, status=200):
@@ -115,6 +116,8 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
                 response = self.get_processes()
             elif parsed_path.path == '/explore/status':
                 response = self.explore_status()
+            elif parsed_path.path == '/nav/status':
+                response = self.nav_status()
             else:
                 response = {'success': False, 'message': f'Unknown path: {parsed_path.path}'}
         except Exception as e:
@@ -371,6 +374,46 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
             return {'success': False, 'message': proc.stderr or proc.stdout}
         except Exception as e:
             return {'success': False, 'message': f'Failed to clear map: {e}'}
+
+    def nav_status(self):
+        """Return status of last nav goal based on process + log markers"""
+        running = False
+        pid = None
+        status = None
+        finished = False
+
+        # Check running process
+        if 'nav_goal' in running_processes:
+            proc = running_processes['nav_goal']
+            running = proc.poll() is None
+            pid = proc.pid if running else None
+            # Cleanup once finished to avoid stale entries
+            if not running:
+                running_processes.pop('nav_goal', None)
+
+        # Inspect log for final status
+        if os.path.exists(NAV_GOAL_LOG):
+            try:
+                with open(NAV_GOAL_LOG, 'r') as f:
+                    tail = f.read()[-4000:]
+                # Sample line: "Goal finished with status: SUCCEEDED"
+                for line in tail.splitlines()[::-1]:
+                    if "Goal finished with status" in line:
+                        parts = line.split(':')
+                        if len(parts) >= 2:
+                            status = parts[-1].strip()
+                        finished = True
+                        break
+            except Exception:
+                pass
+
+        return {
+            'success': True,
+            'running': running,
+            'pid': pid,
+            'status': status,
+            'finished': finished,
+        }
 
     def log_message(self, format, *args):
         """Custom log format"""

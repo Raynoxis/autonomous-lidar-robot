@@ -179,13 +179,18 @@ echo "Starting RosBridge WebSocket on port 9092..."
 ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9092 > /app/logs/rosbridge.log 2>&1 &
 sleep 2
 
-# 5. Attendre le robot
+# 5. Démarrer l'API de contrôle tôt pour éviter les erreurs de connexion frontend
+echo "Starting ROS2 Control API on port 8083..."
+python3 /app/web/ros_api.py > /app/logs/ros_api.log 2>&1 &
+sleep 1
+
+# 6. Attendre le robot
 wait_for_robot
 
-# 6. Attendre la TF odom -> base_footprint pour éviter l'échec du costmap
+# 7. Attendre la TF odom -> base_footprint pour éviter l'échec du costmap
 wait_for_tf
 
-# 7. Navigation + SLAM (après TF prête)
+# 8. Navigation + SLAM (après TF prête)
 echo "Starting Nav2 + SLAM..."
 ros2 launch /app/launch/robot_web.launch.py \
     use_sim_time:=false \
@@ -195,7 +200,7 @@ ros2 launch /app/launch/robot_web.launch.py \
 
 sleep 10
 
-# 8. Activer Nav2
+# 9. Activer Nav2
 activate_nav2
 
 echo ""
@@ -211,10 +216,6 @@ ros2 topic list 2>/dev/null | grep -E "/scan|/map|/odom|/cmd_vel" || echo "  (li
 echo ""
 echo "Active nodes: $(ros2 node list 2>/dev/null | wc -l)"
 echo ""
-
-# 9. Start ROS2 Control API
-echo "Starting ROS2 Control API on port 8083..."
-python3 /app/web/ros_api.py > /app/logs/ros_api.log 2>&1 &
 
 echo "Press Ctrl+C to stop"
 echo ""

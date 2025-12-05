@@ -539,7 +539,7 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
 
     // Navigation status: poll ros_api for goal completion
     const navStatusInterval = setInterval(() => {
-      const { systemState, addLog, transitionToState, connected } = get();
+      const { addLog, transitionToState, connected } = get();
       if (!connected) return;
 
       apiService.getNavigationStatus().then((res) => {

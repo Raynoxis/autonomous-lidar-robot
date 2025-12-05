@@ -27,19 +27,23 @@ export const VirtualJoystick = () => {
 
     joystickManagerRef.current = manager;
 
-    // Handle joystick move
+    // Handle joystick move (vector-based: up=forward, down=reverse, x=steer)
     manager.on('move', (_evt: any, data: JoystickOutputData) => {
       if (!connected) return;
 
-      const distance = Math.min(data.distance, 75) / 75; // Normalize to 0-1
+      const maxDistance = 75;
+      const distance = Math.min(data.distance, maxDistance) / maxDistance; // Normalize 0-1
       const angle = data.angle.radian;
 
-      // Calculate linear and angular velocities
+      // Convert polar to cartesian (right = +x, up = +y in nipple, but we invert y for forward)
+      const x = Math.cos(angle) * distance;
+      const y = Math.sin(angle) * distance;
+
       const maxLinear = 0.3; // m/s
       const maxAngular = 1.0; // rad/s
 
-      const linearVel = Math.cos(angle) * distance * maxLinear;
-      const angularVel = -Math.sin(angle) * distance * maxAngular;
+      const linearVel = -y * maxLinear; // push up (y>0) -> forward (+)
+      const angularVel = -x * maxAngular; // push right (x>0) -> rotate right (-)
 
       setLinear(linearVel);
       setAngular(angularVel);

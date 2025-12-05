@@ -340,7 +340,7 @@ export const MapViewer = () => {
               disabled={!buttonStates.canCancelGoal}
               className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ❌ Stop Navigation
+              ❌ Annuler le goal
             </button>
             <button
               onClick={() => setHomePosition()}

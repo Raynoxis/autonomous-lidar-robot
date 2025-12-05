@@ -447,7 +447,7 @@ export const MapViewer = () => {
       )}
 
       {/* Center Status */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[350] pointer-events-none">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[700] pointer-events-none">
         <div className={`bg-dark-bg/95 px-4 py-2 rounded-lg border ${statusClass()} text-center min-w-[260px]`}>
           <div className="font-semibold text-text-light">{statusMessage()}</div>
           {statusDetails() && (

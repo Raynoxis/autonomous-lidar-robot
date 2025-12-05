@@ -448,34 +448,6 @@ export const useRobotStore = create<RobotStore>((set, get) => ({
       addLog(`✓ Exploration started (PID: ${response.data?.pid})`);
       set({ exploreNodeSeen: false });
       transitionToState('exploring');
-
-      // Vérifier que /explore_node apparaît sous 10s, sinon abandonner proprement
-      const start = Date.now();
-      const interval = setInterval(() => {
-        get().checkNodes();
-        const now = Date.now();
-        const nodes = get().nodes;
-        if (nodes['/explore_node']) {
-          addLog('✓ explore_node actif');
-          clearInterval(interval);
-          clearTimeout(timeout);
-        } else if (now - start >= 10000) {
-          // Timeout 10s : stop exploration pour éviter un état bloqué
-          addLog('✗ explore_node non actif après 10s - arrêt exploration');
-          clearInterval(interval);
-          apiService.stopExploration();
-          transitionToState('robot_ready');
-        }
-      }, 1000);
-
-      const timeout = setTimeout(() => {
-        // Sécurité au cas où clearTimeout n'est pas atteint par le check
-        clearInterval(interval);
-        if (!get().nodes['/explore_node']) {
-          apiService.stopExploration();
-          transitionToState('robot_ready');
-        }
-      }, 12000);
     } else {
       addLog(`✗ Failed to start exploration: ${response.message}`);
     }

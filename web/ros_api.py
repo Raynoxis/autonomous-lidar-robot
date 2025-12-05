@@ -10,7 +10,6 @@ import subprocess
 import threading
 import os
 import signal
-import time
 from urllib.parse import urlparse, parse_qs
 
 PORT = 8083
@@ -160,13 +159,6 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
                     f.write(str(process.pid))
             except Exception:
                 pass
-
-            # Watcher du log d'exploration pour déclencher un stop dès qu'un marqueur de fin apparaît
-            threading.Thread(
-                target=self._watch_explore_log,
-                args=(process,),
-                daemon=True
-            ).start()
 
             return {
                 'success': True,
@@ -383,43 +375,6 @@ class ROS2APIHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         """Custom log format"""
         print(f"[ROS2 API] {format % args}")
-
-    def _watch_explore_log(self, process: subprocess.Popen):
-        """Surveille explore.log en quasi temps réel pour arrêter dès qu'un log de fin apparaît."""
-        markers = (
-            'Exploration stopped',
-            'All frontiers traversed',
-            'All frontiers traversed/tried out',
-            'No frontiers found',
-        )
-        last_pos = 0
-
-        while True:
-            # Si le process s'est déjà terminé, sortir
-            if process.poll() is not None:
-                return
-
-            try:
-                if os.path.exists(EXPLORE_LOG):
-                    current_size = os.path.getsize(EXPLORE_LOG)
-                    # Si le fichier a été tronqué/rotaté, on repart du début
-                    if current_size < last_pos:
-                        last_pos = 0
-
-                    with open(EXPLORE_LOG, 'r') as f:
-                        f.seek(last_pos)
-                        chunk = f.read()
-                        last_pos = f.tell()
-
-                    if any(marker in chunk for marker in markers):
-                        print("[ROS2 API] Exploration end marker detected -> stopping exploration")
-                        self.stop_explore()
-                        return
-            except Exception:
-                # Ignore erreurs ponctuelles de lecture
-                pass
-
-            time.sleep(1)
 
 
 def run_server():

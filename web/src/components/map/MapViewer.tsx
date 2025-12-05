@@ -38,11 +38,11 @@ export const MapViewer = () => {
 
     const map = L.map(mapContainerRef.current, {
       crs: L.CRS.Simple,
-      minZoom: -5,
-      maxZoom: 10,
+      minZoom: -3,
+      maxZoom: 16,
       zoomControl: true,
       attributionControl: false,
-    }).setView([0, 0], 0);
+    }).setView([0, 0], 2);
 
     // Add neutral gray background
     const bounds: L.LatLngBoundsExpression = [[-10, -10], [10, 10]];
@@ -203,7 +203,8 @@ export const MapViewer = () => {
 
     // Fit bounds only on FIRST map load
     if (isFirstMapLoadRef.current) {
-      map.fitBounds(bounds);
+      map.fitBounds(bounds, { padding: [12, 12] });
+      map.zoomIn(1);
       isFirstMapLoadRef.current = false;
     }
   }, [mapData, mapBounds]);
@@ -300,9 +301,9 @@ export const MapViewer = () => {
       </div>
 
       {/* Map Controls */}
-      <div className="absolute top-4 right-4 z-[400] flex flex-col gap-3 bg-dark-bg/95 p-4 rounded-lg border border-dark-border">
+      <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2 bg-dark-bg/95 p-3 rounded-lg border border-dark-border text-sm">
         <div className="space-y-2">
-          <div className="text-xs uppercase tracking-wide text-text-gray font-bold">Navigation</div>
+          <div className="text-xs uppercase tracking-wide text-text-gray font-semibold">Navigation</div>
           <div className="flex flex-col gap-2">
             <button
               onClick={() => {
@@ -310,7 +311,7 @@ export const MapViewer = () => {
                 addLog(clickMode === 'navigation' ? 'Navigation mode off' : 'Click map to navigate');
               }}
               disabled={!buttonStates.canNavigate}
-              className={`px-4 py-2 rounded-lg font-bold transition-all ${
+              className={`px-3 py-2 rounded-lg font-semibold transition-all ${
                 clickMode === 'navigation'
                   ? 'bg-success text-white'
                   : 'bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80'
@@ -324,7 +325,7 @@ export const MapViewer = () => {
                 addLog(clickMode === 'initialpose' ? 'Initial pose mode off' : 'Click map to set initial pose');
               }}
               disabled={!buttonStates.canSetHome}
-              className={`px-4 py-2 rounded-lg font-bold transition-all ${
+              className={`px-3 py-2 rounded-lg font-semibold transition-all ${
                 clickMode === 'initialpose'
                   ? 'bg-warning text-white'
                   : 'bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80'
@@ -338,20 +339,20 @@ export const MapViewer = () => {
                 handleClearGoal();
               }}
               disabled={!buttonStates.canCancelGoal}
-              className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 rounded-lg font-semibold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ❌ Stop Navigation
             </button>
             <button
               onClick={() => setHomePosition()}
               disabled={!buttonStates.canSetHome}
-              className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 rounded-lg font-semibold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               🏠 Définir Home
             </button>
             <button
               onClick={handleClearGoal}
-              className="px-4 py-2 rounded-lg font-bold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all"
+              className="px-3 py-2 rounded-lg font-semibold bg-dark-card text-text-light border border-dark-border hover:bg-dark-card/80 transition-all"
             >
               🗑️ Effacer le goal
             </button>
